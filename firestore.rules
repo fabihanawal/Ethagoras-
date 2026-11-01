@@ -52,6 +52,31 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Courses collection
+    match /courses/{courseId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Quiz Questions collection
+    match /questions/{questionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Student User Profiles
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // Certificates (Merit & Course Completion)
+    match /certificates/{certId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
     // Slideshow
     match /slides/{slideId} {
       allow read: if true;
@@ -64,10 +89,10 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
-    // Leaderboard
+    // Leaderboard (Top 10 - only authenticated Gmail users can submit)
     match /leaderboard/{entryId} {
       allow read: if true;
-      allow create: if true;
+      allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
 

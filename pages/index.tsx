@@ -7,6 +7,7 @@ import { AdmissionForm } from '../components/AdmissionForm';
 import { AdminDashboard } from '../components/AdminDashboard';
 import { CoursesSection } from '../components/CoursesSection';
 import { FacultySection } from '../components/FacultySection';
+import { UserProfileView } from '../components/UserProfileView';
 import { Footer } from '../components/Footer';
 import { useAuth } from '../lib/AuthContext';
 import {
@@ -16,6 +17,7 @@ import {
   subscribeTeachers,
   subscribeSlides,
   subscribeBookings,
+  subscribeCourses,
 } from '../lib/firestoreService';
 import {
   INITIAL_CONTACT_SETTINGS,
@@ -24,6 +26,7 @@ import {
   INITIAL_TEACHERS,
   INITIAL_SLIDES,
   INITIAL_BOOKINGS,
+  INITIAL_COURSES,
 } from '../lib/dataStore';
 import {
   Slide,
@@ -32,6 +35,7 @@ import {
   SocialSettings,
   DirectorProfile,
   TeacherProfile,
+  Course,
 } from '../lib/types';
 import {
   Sparkles,
@@ -56,6 +60,7 @@ export default function Home() {
   const [director, setDirector] = useState<DirectorProfile>(INITIAL_DIRECTOR_PROFILE);
   const [teachers, setTeachers] = useState<TeacherProfile[]>(INITIAL_TEACHERS);
   const [slides, setSlides] = useState<Slide[]>(INITIAL_SLIDES);
+  const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
   const [bookings, setBookings] = useState<BookingSubmission[]>(INITIAL_BOOKINGS);
 
   // Synchronize hash routing
@@ -78,6 +83,7 @@ export default function Home() {
     const unsubDirector = subscribeDirector(setDirector);
     const unsubTeachers = subscribeTeachers(setTeachers);
     const unsubSlides = subscribeSlides(setSlides);
+    const unsubCourses = subscribeCourses(setCourses);
 
     // Bookings are confidential and only accessible by verified admins
     let unsubBookings = () => {};
@@ -91,6 +97,7 @@ export default function Home() {
       unsubDirector();
       unsubTeachers();
       unsubSlides();
+      unsubCourses();
       unsubBookings();
     };
   }, [isAdmin]);
@@ -125,6 +132,8 @@ export default function Home() {
           <AdmissionForm onSuccessBooking={handleNewBooking} navigate={navigate} />
         ) : currentRoute === '#/faculty' ? (
           <FacultySection director={director} teachers={teachers} navigate={navigate} />
+        ) : currentRoute === '#/profile' ? (
+          <UserProfileView navigate={navigate} />
         ) : currentRoute === '#/admin' ? (
           <AdminDashboard
             slides={slides}
@@ -133,10 +142,11 @@ export default function Home() {
             socialSettings={socialSettings}
             director={director}
             teachers={teachers}
+            courses={courses}
             navigate={navigate}
           />
         ) : currentRoute === '#/courses' ? (
-          <CoursesSection navigate={navigate} />
+          <CoursesSection courses={courses} navigate={navigate} />
         ) : (
           /* Default Landing Page: '#/' */
           <div className="space-y-12 sm:space-y-20 pb-16">

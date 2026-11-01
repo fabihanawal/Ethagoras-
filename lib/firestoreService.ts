@@ -15,12 +15,18 @@ import {
   Slide,
   BookingSubmission,
   LeaderboardEntry,
+  Course,
+  QuizQuestion,
+  UserProfile,
+  Certificate,
 } from './types';
 import {
   INITIAL_CONTACT_SETTINGS,
   INITIAL_SOCIAL_SETTINGS,
   INITIAL_DIRECTOR_PROFILE,
   INITIAL_TEACHERS,
+  INITIAL_COURSES,
+  SECURE_QUIZ_DATABASE,
   INITIAL_SLIDES,
   INITIAL_BOOKINGS,
   INITIAL_LEADERBOARD,
@@ -39,7 +45,7 @@ export function subscribeContactSettings(callback: (data: ContactSettings) => vo
       }
     },
     (err) => {
-      console.warn('[Firestore] Contact settings listener warning:', err.message);
+      console.warn('[Firestore] Contact listener warning:', err.message);
       callback(INITIAL_CONTACT_SETTINGS);
     }
   );
@@ -69,7 +75,7 @@ export function subscribeSocialSettings(callback: (data: SocialSettings) => void
       }
     },
     (err) => {
-      console.warn('[Firestore] Social settings listener warning:', err.message);
+      console.warn('[Firestore] Social listener warning:', err.message);
       callback(INITIAL_SOCIAL_SETTINGS);
     }
   );
@@ -190,7 +196,183 @@ export async function deleteTeacher(id: string) {
   }
 }
 
-// 6. Slides
+// 6. Courses Management
+export function subscribeCourses(callback: (courses: Course[]) => void) {
+  const colRef = collection(db, 'courses');
+  return onSnapshot(
+    colRef,
+    (snap) => {
+      if (!snap.empty) {
+        const list: Course[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Course));
+        list.sort((a, b) => (a.displayOrder ?? 99) - (b.displayOrder ?? 99));
+        callback(list);
+      } else {
+        callback(INITIAL_COURSES);
+      }
+    },
+    (err) => {
+      console.warn('[Firestore] Courses listener warning:', err.message);
+      callback(INITIAL_COURSES);
+    }
+  );
+}
+
+export async function saveCourse(course: Course) {
+  try {
+    const ref = doc(db, 'courses', course.id);
+    await setDoc(ref, course, { merge: true });
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `courses/${course.id}`);
+    throw err;
+  }
+}
+
+export async function deleteCourse(id: string) {
+  try {
+    await deleteDoc(doc(db, 'courses', id));
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `courses/${id}`);
+    throw err;
+  }
+}
+
+// 7. Quiz Questions Management
+export function subscribeQuestions(callback: (questions: QuizQuestion[]) => void) {
+  const colRef = collection(db, 'questions');
+  return onSnapshot(
+    colRef,
+    (snap) => {
+      if (!snap.empty) {
+        const list: QuizQuestion[] = [];
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() } as QuizQuestion));
+        list.sort((a, b) => (a.displayOrder ?? 99) - (b.displayOrder ?? 99));
+        callback(list);
+      } else {
+        callback(SECURE_QUIZ_DATABASE as unknown as QuizQuestion[]);
+      }
+    },
+    (err) => {
+      console.warn('[Firestore] Questions listener warning:', err.message);
+      callback(SECURE_QUIZ_DATABASE as unknown as QuizQuestion[]);
+    }
+  );
+}
+
+export async function saveQuestion(q: QuizQuestion) {
+  try {
+    const ref = doc(db, 'questions', q.id);
+    await setDoc(ref, q, { merge: true });
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `questions/${q.id}`);
+    throw err;
+  }
+}
+
+export async function deleteQuestion(id: string) {
+  try {
+    await deleteDoc(doc(db, 'questions', id));
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `questions/${id}`);
+    throw err;
+  }
+}
+
+// 8. Student User Profile
+export function subscribeUserProfile(uid: string, callback: (profile: UserProfile | null) => void) {
+  if (!uid) return () => {};
+  const ref = doc(db, 'users', uid);
+  return onSnapshot(
+    ref,
+    (snap) => {
+      if (snap.exists()) {
+        callback(snap.data() as UserProfile);
+      } else {
+        callback(null);
+      }
+    },
+    (err) => {
+      console.warn('[Firestore] User profile listener warning:', err.message);
+      callback(null);
+    }
+  );
+}
+
+export async function saveUserProfile(profile: UserProfile) {
+  try {
+    const ref = doc(db, 'users', profile.uid);
+    await setDoc(ref, { ...profile, updatedAt: new Date().toISOString() }, { merge: true });
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `users/${profile.uid}`);
+    throw err;
+  }
+}
+
+// 9. Certificates (Merit Top 10 & Course Completion)
+export function subscribeUserCertificates(userId: string, callback: (certs: Certificate[]) => void) {
+  const colRef = collection(db, 'certificates');
+  return onSnapshot(
+    colRef,
+    (snap) => {
+      const list: Certificate[] = [];
+      snap.forEach((d) => {
+        const c = { id: d.id, ...d.data() } as Certificate;
+        if (c.userId === userId) {
+          list.push(c);
+        }
+      });
+      callback(list);
+    },
+    (err) => {
+      console.warn('[Firestore] Certificates listener warning:', err.message);
+      callback([]);
+    }
+  );
+}
+
+export function subscribeAllCertificates(callback: (certs: Certificate[]) => void) {
+  const colRef = collection(db, 'certificates');
+  return onSnapshot(
+    colRef,
+    (snap) => {
+      const list: Certificate[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Certificate));
+      callback(list);
+    },
+    (err) => {
+      console.warn('[Firestore] All certificates listener warning:', err.message);
+      callback([]);
+    }
+  );
+}
+
+export async function issueCertificate(cert: Certificate) {
+  try {
+    const ref = doc(db, 'certificates', cert.id);
+    await setDoc(ref, cert, { merge: true });
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `certificates/${cert.id}`);
+    throw err;
+  }
+}
+
+export async function deleteCertificate(id: string) {
+  try {
+    await deleteDoc(doc(db, 'certificates', id));
+    return true;
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `certificates/${id}`);
+    throw err;
+  }
+}
+
+// 10. Slides
 export function subscribeSlides(callback: (slides: Slide[]) => void) {
   const colRef = collection(db, 'slides');
   return onSnapshot(
@@ -233,7 +415,7 @@ export async function deleteSlide(id: string) {
   }
 }
 
-// 7. Bookings (Admissions) - Admin only
+// 11. Bookings (Admissions) - Admin only
 export function subscribeBookings(callback: (bookings: BookingSubmission[]) => void) {
   const colRef = collection(db, 'bookings');
   return onSnapshot(
@@ -276,7 +458,7 @@ export async function updateBookingStatus(id: string, status: 'Pending' | 'Appro
   }
 }
 
-// 8. Leaderboard
+// 12. Leaderboard (Top 10)
 export function subscribeLeaderboard(callback: (list: LeaderboardEntry[]) => void) {
   const colRef = collection(db, 'leaderboard');
   return onSnapshot(
@@ -286,14 +468,14 @@ export function subscribeLeaderboard(callback: (list: LeaderboardEntry[]) => voi
         const list: LeaderboardEntry[] = [];
         snap.forEach((d) => list.push({ id: d.id, ...d.data() } as LeaderboardEntry));
         list.sort((a, b) => b.score - a.score);
-        callback(list.slice(0, 5));
+        callback(list.slice(0, 10));
       } else {
-        callback(INITIAL_LEADERBOARD.slice(0, 5));
+        callback(INITIAL_LEADERBOARD.slice(0, 10));
       }
     },
     (err) => {
       console.warn('[Firestore] Leaderboard listener warning:', err.message);
-      callback(INITIAL_LEADERBOARD.slice(0, 5));
+      callback(INITIAL_LEADERBOARD.slice(0, 10));
     }
   );
 }
@@ -309,27 +491,31 @@ export async function addLeaderboardScore(entry: LeaderboardEntry) {
   }
 }
 
-// 9. Admin Batch Seed Utility (Only called intentionally by an authorized Admin)
+// 13. Admin Batch Seed Utility
 export async function seedInitialDataToFirestore() {
   try {
-    // Contact
     await setDoc(doc(db, 'settings', 'contact'), INITIAL_CONTACT_SETTINGS, { merge: true });
-    // Social
     await setDoc(doc(db, 'settings', 'social'), INITIAL_SOCIAL_SETTINGS, { merge: true });
-    // Admin list
     await setDoc(doc(db, 'settings', 'admins'), {
       emails: [DEFAULT_ADMIN_EMAIL, 'tayebkjl@gmail.com'],
       updatedAt: new Date().toISOString(),
     }, { merge: true });
-    // Director
     await setDoc(doc(db, 'director', 'main'), INITIAL_DIRECTOR_PROFILE, { merge: true });
-    // Teachers
+
     for (const t of INITIAL_TEACHERS) {
       await setDoc(doc(db, 'teachers', t.id), t, { merge: true });
     }
-    // Slides
+    for (const c of INITIAL_COURSES) {
+      await setDoc(doc(db, 'courses', c.id), c, { merge: true });
+    }
+    for (const q of SECURE_QUIZ_DATABASE) {
+      await setDoc(doc(db, 'questions', q.id), q, { merge: true });
+    }
     for (const s of INITIAL_SLIDES) {
       await setDoc(doc(db, 'slides', s.id), s, { merge: true });
+    }
+    for (const lb of INITIAL_LEADERBOARD) {
+      await setDoc(doc(db, 'leaderboard', lb.id), lb, { merge: true });
     }
     return true;
   } catch (err) {

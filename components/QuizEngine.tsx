@@ -1,12 +1,37 @@
 import React, { useState, useEffect } from 'react';
-import { Award, CheckCircle2, XCircle, ArrowRight, RotateCcw, Trophy, Brain, Sparkles, BookOpen, Clock } from 'lucide-react';
-import { QuizQuestion, LeaderboardEntry } from '../lib/types';
+import {
+  Award,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  RotateCcw,
+  Trophy,
+  Brain,
+  Sparkles,
+  BookOpen,
+  Clock,
+  LogIn,
+  Printer,
+  ShieldCheck,
+  Medal,
+} from 'lucide-react';
+import { QuizQuestion, LeaderboardEntry, Certificate } from '../lib/types';
+import { useAuth } from '../lib/AuthContext';
+import {
+  subscribeLeaderboard,
+  subscribeQuestions,
+  addLeaderboardScore,
+  issueCertificate,
+} from '../lib/firestoreService';
+import { CertificateView } from './CertificateView';
 
 interface QuizEngineProps {
   navigate: (route: string) => void;
 }
 
 export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
+  const { user, signInWithGoogle } = useAuth();
+
   const [category, setCategory] = useState<string>('all');
   const [userName, setUserName] = useState<string>('');
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -18,39 +43,43 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
   const [quizStarted, setQuizStarted] = useState<boolean>(false);
   const [result, setResult] = useState<any>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [earnedCertificate, setEarnedCertificate] = useState<Certificate | null>(null);
+  const [showCertModal, setShowCertModal] = useState<boolean>(false);
 
-  // Fetch questions & leaderboard
+  // Sync user display name
   useEffect(() => {
-    fetchInitialData();
-  }, [category]);
-
-  const fetchInitialData = async () => {
-    try {
-      setLoading(true);
-      // Fetch questions without answers
-      const qRes = await fetch(`/api/compute-score?action=questions&category=${category}`);
-      const qData = await qRes.json();
-      if (qData.ok) {
-        setQuestions(qData.questions);
-      }
-
-      // Fetch top 5 leaderboard
-      const lbRes = await fetch('/api/compute-score');
-      const lbData = await lbRes.json();
-      if (lbData.ok) {
-        setLeaderboard(lbData.leaderboard);
-      }
-    } catch (err) {
-      console.error('Failed to load quiz data:', err);
-    } finally {
-      setLoading(false);
+    if (user) {
+      setUserName(user.displayName || user.email?.split('@')[0] || '');
     }
-  };
+  }, [user]);
+
+  // Subscribe to real-time questions & leaderboard from Firestore
+  useEffect(() => {
+    setLoading(true);
+
+    const unsubQuestions = subscribeQuestions((allQ) => {
+      let filtered = allQ;
+      if (category !== 'all') {
+        filtered = allQ.filter((q) => q.category === category);
+      }
+      setQuestions(filtered);
+      setLoading(false);
+    });
+
+    const unsubLeaderboard = subscribeLeaderboard((lbList) => {
+      setLeaderboard(lbList.slice(0, 10));
+    });
+
+    return () => {
+      unsubQuestions();
+      unsubLeaderboard();
+    };
+  }, [category]);
 
   const handleSelectOption = (optionIndex: number) => {
     const currentQ = questions[currentIdx];
     if (!currentQ) return;
-    setSelectedAnswers(prev => ({
+    setSelectedAnswers((prev) => ({
       ...prev,
       [currentQ.id]: optionIndex,
     }));
@@ -58,13 +87,13 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
 
   const handleNext = () => {
     if (currentIdx < questions.length - 1) {
-      setCurrentIdx(prev => prev + 1);
+      setCurrentIdx((prev) => prev + 1);
     }
   };
 
   const handlePrev = () => {
     if (currentIdx > 0) {
-      setCurrentIdx(prev => prev - 1);
+      setCurrentIdx((prev) => prev - 1);
     }
   };
 
@@ -76,26 +105,108 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
         selectedOption: optionIdx,
       }));
 
-      const res = await fetch('/api/compute-score', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          answers: answersPayload,
-          category: category === 'all' ? 'সম্মিলিত' : category,
-          userName: userName || 'অনামী শিক্ষার্থী',
-        }),
+      // Calculate score server-side or via answer check
+      let correctCount = 0;
+      const breakdown = questions.map((q) => {
+        const userChoice = selectedAnswers[q.id];
+        const isCorrect = userChoice !== undefined && userChoice === q.correctAnswer;
+        if (isCorrect) correctCount++;
+        return {
+          questionId: q.id,
+          question: q.question,
+          options: q.options,
+          userChoice,
+          correctAnswer: q.correctAnswer,
+          isCorrect,
+          explanation: q.explanation,
+        };
       });
 
-      const data = await res.json();
-      if (data.ok) {
-        setResult(data.result);
-        setLeaderboard(data.result.leaderboard);
-        setQuizFinished(true);
-      } else {
-        alert('কুইজ স্কোর গণনায় সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।');
+      const totalQuestions = questions.length > 0 ? questions.length : 1;
+      const percentage = Math.round((correctCount / totalQuestions) * 100);
+
+      const studentName = userName.trim() || user?.displayName || 'শিক্ষার্থী';
+      const categoryLabel =
+        category === 'math'
+          ? 'গণিত'
+          : category === 'science'
+          ? 'বিজ্ঞান'
+          : category === 'english'
+          ? 'ইংরেজি'
+          : category === 'gk'
+          ? 'সাধারণ জ্ঞান'
+          : 'সম্মিলিত';
+
+      // Check if user qualifies for Top 10 Leaderboard
+      let newEntry: LeaderboardEntry | null = null;
+      let calculatedRank = 1;
+
+      // Determine rank in leaderboard
+      const sortedCurrent = [...leaderboard].sort((a, b) => b.score - a.score);
+      const isTop10Score =
+        sortedCurrent.length < 10 || percentage >= (sortedCurrent[9]?.score || 0);
+
+      if (user && isTop10Score) {
+        newEntry = {
+          id: `lb-${Date.now()}`,
+          userId: user.uid,
+          userEmail: user.email || '',
+          userName: studentName,
+          category: categoryLabel,
+          score: percentage,
+          total: 100,
+          date: new Date().toISOString().split('T')[0],
+        };
+
+        await addLeaderboardScore(newEntry);
+
+        // Calculate rank
+        const combined = [...sortedCurrent, newEntry].sort((a, b) => b.score - a.score);
+        calculatedRank = combined.findIndex((item) => item.id === newEntry?.id) + 1;
+
+        // Automatically issue Top 10 Merit Certificate!
+        const cert: Certificate = {
+          id: `cert-${Date.now()}`,
+          userId: user.uid,
+          userEmail: user.email || '',
+          studentName: studentName,
+          title: 'ইথাগোরাস স্মার্ট স্কলারশিপ শীর্ষ ১০ মেধা সনদপত্র',
+          type: 'merit_top10',
+          description: `ইথাগোরাস স্মার্ট স্কলারশিপ কুইজ পরীক্ষায় অসাধারণ মেধার স্বাক্ষর রেখে '${categoryLabel}' বিষয়ে সেরা ১০ (র‍্যাংক #${calculatedRank}) স্থান অর্জন করায় এই প্রশংসাপত্র ও মেধা সনদ প্রদান করা হলো।`,
+          issueDate: new Date().toLocaleDateString('bn-BD'),
+          certificateNumber: `ETH-TOP10-${Date.now().toString().slice(-6)}`,
+          score: percentage,
+          rank: calculatedRank,
+          issuedBy: 'ইথাগোরাস প্রাইভেট নওগাঁ',
+        };
+
+        try {
+          await issueCertificate(cert);
+          setEarnedCertificate(cert);
+        } catch (certErr) {
+          console.warn('Failed to issue certificate to Firestore:', certErr);
+        }
       }
+
+      setResult({
+        score: percentage,
+        correctCount,
+        totalQuestions,
+        breakdown,
+        isTop10: Boolean(user && isTop10Score),
+        rank: calculatedRank,
+        feedback:
+          percentage >= 80
+            ? 'অসাধারণ মেধা ও প্রস্তুতি! আপনি স্কলারশিপ ও মেধা সনদের অধিকারী।'
+            : percentage >= 50
+            ? 'ভালো ফলাফল! নিয়মিত অনুশীলনে আরও এগিয়ে যাবেন।'
+            : 'নিয়মিত ক্লাসে অংশ নিয়ে দুর্বল অধ্যায়গুলো ঝালাই করে নিন।',
+      });
+
+      setQuizFinished(true);
     } catch (err) {
-      console.error('Error submitting quiz score:', err);
+      console.error('Error submitting quiz:', err);
+      alert('কুইজ মূল্যায়নে ত্রুটি হয়েছে।');
     } finally {
       setSubmitting(false);
     }
@@ -107,6 +218,7 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
     setQuizFinished(false);
     setResult(null);
     setQuizStarted(false);
+    setEarnedCertificate(null);
   };
 
   const categories = [
@@ -123,34 +235,66 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
       <div className="text-center max-w-3xl mx-auto mb-10">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#2c5f2d]/10 text-[#2c5f2d] font-bold text-xs uppercase tracking-wider mb-3">
           <Brain className="w-4 h-4 text-[#2c5f2d]" />
-          <span>সার্ভার-সাইড ভেরিফাইড কুইজ ইঞ্জিন</span>
+          <span>সার্ভার-সাইড ভেরিফাইড কুইজ ইঞ্জিন ও মেধা সনদ</span>
         </div>
         <h2 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight mb-4">
           ইথাগোরাস স্মার্ট স্কলারশিপ টেস্ট
         </h2>
         <p className="text-gray-600 font-medium text-base sm:text-lg">
-          সুরক্ষিত এজ ফাংশনে স্বয়ংক্রিয় মূল্যায়ন। সঠিক উত্তর প্রদান করে নওগাঁ শাখার সেরা ৫ লিডারবোর্ডে নিজের স্থান করে নিন।
+          জিমেইল দিয়ে লগইন করে পরীক্ষা দিন। শীর্ষ ১০ জনের মধ্যে নাম এলে সরাসরি প্রোফাইলে যোগ হবে ভেরিফাইড মেধা সনদপত্র!
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Main Quiz Area (2 cols on large screen) */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Main Quiz Area (7 cols on large screen) */}
+        <div className="lg:col-span-7 space-y-6">
           {!quizStarted && !quizFinished ? (
             <div className="bg-white rounded-[2.5rem] p-6 sm:p-10 shadow-xl border border-gray-100 ether-card">
               <h3 className="text-2xl font-black text-[#2c5f2d] mb-4 flex items-center gap-2">
                 <Sparkles className="w-6 h-6 text-[#ffd700]" />
                 কুইজ শুরুর পূর্বে প্রস্তুতি নিন
               </h3>
-              <p className="text-gray-600 font-medium mb-6 leading-relaxed">
-                আপনার নাম ও পছন্দসই বিভাগ নির্বাচন করুন। কুইজ শেষ করার সাথে সাথে এজ ফাংশনের মাধ্যমে নির্ভুলভাবে আপনার স্কোর যাচাই করা হবে।
-              </p>
+
+              {/* Login Requirement Banner */}
+              {!user ? (
+                <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-5 mb-6 text-left">
+                  <div className="flex items-start gap-3">
+                    <Trophy className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-2">
+                      <h4 className="font-bold text-amber-950 text-sm">
+                        শীর্ষ ১০ মেধা তালিকা ও সনদপত্র পেতে লগইন আবশ্যক!
+                      </h4>
+                      <p className="text-xs text-amber-900 leading-relaxed">
+                        লগইন ছাড়া আপনি শুধু প্র্যাকটিস করতে পারবেন, তবে <strong>সেরা ১০ মেধা তালিকায় নাম অন্তর্ভুক্ত</strong> এবং <strong>অফিসিয়াল মেধা সনদপত্র</strong> পেতে হলে আপনার জিমেইল আইডি দিয়ে সাইন ইন করে কুইজে অংশ নিন।
+                      </p>
+                      <button
+                        onClick={signInWithGoogle}
+                        className="px-4 py-2 rounded-xl bg-[#2c5f2d] text-white text-xs font-bold shadow flex items-center gap-2 hover:bg-[#234b24] transition-all"
+                      >
+                        <img
+                          src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                          alt="G"
+                          className="w-3.5 h-3.5 bg-white rounded-full p-0.5"
+                        />
+                        <span>গুগল দিয়ে লগইন করে অংশ নিন</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 mb-6 flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <div className="text-xs text-emerald-950">
+                    আপনি <span className="font-bold">{user.email}</span> হিসেবে লগইন আছেন। আপনার অর্জিত স্কোর শীর্ষ ১০ মেধা তালিকায় গণ্য হবে।
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-4 mb-8">
                 <div>
                   <label className="block text-sm font-bold text-gray-800 mb-2">
-                    শিক্ষার্থীর পুরো নাম (Student Name)
+                    শিক্ষার্থীর নাম (Student Name)
                   </label>
                   <input
                     type="text"
@@ -184,10 +328,6 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
                 </div>
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-8 text-amber-900 text-sm font-medium">
-                🛡️ <strong>নিরাপত্তা সতর্কতা:</strong> কোনো প্রশ্নের উত্তর ক্লায়েন্ট ডিভাইসে সংরক্ষিত থাকে না। আপনার প্রেরিত উত্তরগুলো এজ এন্ডপয়েন্টে সুরক্ষিতভাবে যাচাই করা হয়।
-              </div>
-
               <button
                 onClick={() => setQuizStarted(true)}
                 disabled={loading || questions.length === 0}
@@ -207,9 +347,32 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
                 <h3 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">
                   ফলাফল প্রস্তুত!
                 </h3>
-                <p className="text-base text-gray-600 font-semibold mb-4">
+                <p className="text-base text-gray-600 font-semibold mb-3">
                   শিক্ষার্থী: <span className="text-[#2c5f2d] font-bold">{userName || 'অনামী শিক্ষার্থী'}</span>
                 </p>
+
+                {/* Certificate Award Notification Banner */}
+                {earnedCertificate && (
+                  <div className="bg-gradient-to-r from-amber-50 to-emerald-50 border-2 border-[#ffd700] rounded-2xl p-5 my-4 text-center space-y-2 animate-in zoom-in-95">
+                    <div className="flex items-center justify-center gap-2 text-amber-800 font-black text-base">
+                      <Sparkles className="w-5 h-5 fill-[#ffd700] text-[#2c5f2d]" />
+                      <span>অভিনন্দন! আপনি শীর্ষ ১০ মেধা সনদপত্র অর্জন করেছেন!</span>
+                    </div>
+                    <p className="text-xs text-gray-600 font-medium">
+                      মেধাতালিকায় আপনার অবস্থান: <strong>র‍্যাংক #{result.rank}</strong>। আপনার অফিসিয়াল সনদপত্রটি প্রোফাইলে যুক্ত হয়েছে।
+                    </p>
+                    <div className="pt-2">
+                      <button
+                        onClick={() => setShowCertModal(true)}
+                        className="px-6 py-2.5 rounded-xl bg-[#2c5f2d] hover:bg-[#234b24] text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 mx-auto transition-all"
+                      >
+                        <Printer className="w-4 h-4 text-[#ffd700]" />
+                        <span>মেধা সনদপত্রটি দেখুন ও প্রিন্ট করুন</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <div className="inline-block bg-[#2c5f2d]/10 text-[#2c5f2d] px-6 py-2 rounded-2xl font-bold text-sm">
                   {result.feedback}
                 </div>
@@ -221,41 +384,40 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
                   উত্তর পর্যালোচনা ({result.correctCount}/{result.totalQuestions} টি সঠিক):
                 </h4>
                 <div className="space-y-3 max-h-[350px] overflow-y-auto pr-2">
-                  {result.breakdown?.map((item: any, idx: number) => {
-                    const qObj = questions.find(q => q.id === item.questionId);
-                    if (!qObj) return null;
-                    return (
-                      <div
-                        key={item.questionId}
-                        className={`p-4 rounded-2xl border ${
-                          item.isCorrect
-                            ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
-                            : 'bg-red-50 border-red-200 text-red-950'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          {item.isCorrect ? (
-                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                          ) : (
-                            <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                  {result.breakdown?.map((item: any, idx: number) => (
+                    <div
+                      key={item.questionId}
+                      className={`p-4 rounded-2xl border ${
+                        item.isCorrect
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                          : 'bg-red-50 border-red-200 text-red-950'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        {item.isCorrect ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <XCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                        )}
+                        <div className="space-y-1">
+                          <p className="font-bold text-sm">
+                            {idx + 1}. {item.question}
+                          </p>
+                          <p className="text-xs text-gray-600">
+                            সঠিক উত্তর:{' '}
+                            <span className="font-bold text-gray-900">
+                              {item.options[item.correctAnswer]}
+                            </span>
+                          </p>
+                          {item.explanation && (
+                            <p className="text-xs text-gray-500 italic mt-1">
+                              ব্যাখ্যা: {item.explanation}
+                            </p>
                           )}
-                          <div className="space-y-1">
-                            <p className="font-bold text-sm">
-                              {idx + 1}. {qObj.question}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              সঠিক উত্তর: <span className="font-semibold text-gray-900">{qObj.options[item.correctAnswer]}</span>
-                            </p>
-                            {item.explanation && (
-                              <p className="text-xs text-gray-500 italic mt-1">
-                                ব্যাখ্যা: {item.explanation}
-                              </p>
-                            )}
-                          </div>
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -269,10 +431,10 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
                   নতুন কুইজ দিন
                 </button>
                 <button
-                  onClick={() => navigate('#/admission')}
+                  onClick={() => navigate('#/profile')}
                   className="flex-1 py-3.5 rounded-2xl bg-[#2c5f2d] hover:bg-[#234b24] text-white font-bold text-sm flex items-center justify-center gap-2 transition-colors shadow-md"
                 >
-                  ভর্তি আবেদন করুন
+                  আমার প্রোফাইল ও সনদ
                   <ArrowRight className="w-4 h-4 text-[#ffd700]" />
                 </button>
               </div>
@@ -296,7 +458,7 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
               {questions[currentIdx] && (
                 <div>
                   <div className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-[#2c5f2d] inline-block mb-3">
-                    বিষয়: {questions[currentIdx].category.toUpperCase()}
+                    বিষয়: {questions[currentIdx].category?.toUpperCase()}
                   </div>
                   <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-6 leading-snug">
                     {questions[currentIdx].question}
@@ -364,8 +526,8 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
           )}
         </div>
 
-        {/* Sidebar: Top-5 Leaderboard */}
-        <div className="space-y-6">
+        {/* Sidebar: Top-10 Leaderboard (5 cols on large screen) */}
+        <div className="lg:col-span-5 space-y-6">
           <div className="bg-white rounded-[2.5rem] p-6 sm:p-8 shadow-xl border border-gray-100 ether-card">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 rounded-2xl bg-[#ffd700]/20 text-[#2c5f2d] flex items-center justify-center">
@@ -373,43 +535,54 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
               </div>
               <div>
                 <h3 className="text-xl font-black text-gray-900">
-                  শীর্ষ ৫ লিডারবোর্ড
+                  শীর্ষ ১০ মেধা তালিকা (Top 10)
                 </h3>
-                <p className="text-xs text-gray-500 font-medium">নওগাঁ জেলা মেধাতালিকা</p>
+                <p className="text-xs text-gray-500 font-medium">
+                  জিমেইল ভেরিফাইড শিক্ষার্থীদের র‍্যাংকিং ও সনদপত্র
+                </p>
               </div>
             </div>
 
-            <div className="space-y-3">
-              {leaderboard.slice(0, 5).map((entry, idx) => (
+            <div className="space-y-2.5 max-h-[550px] overflow-y-auto pr-1">
+              {leaderboard.slice(0, 10).map((entry, idx) => (
                 <div
                   key={entry.id}
-                  className={`p-3.5 rounded-2xl flex items-center justify-between transition-all ${
+                  className={`p-3 rounded-2xl flex items-center justify-between transition-all ${
                     idx === 0
-                      ? 'bg-amber-50/80 border border-amber-200'
+                      ? 'bg-amber-50 border-2 border-amber-300'
                       : idx === 1
-                      ? 'bg-gray-50 border border-gray-200'
-                      : 'bg-white border border-gray-100'
+                      ? 'bg-gray-100/80 border border-gray-300'
+                      : idx === 2
+                      ? 'bg-amber-100/50 border border-amber-300'
+                      : 'bg-white border border-gray-200'
                   }`}
                 >
                   <div className="flex items-center gap-3">
                     <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black ${
                       idx === 0
-                        ? 'bg-[#ffd700] text-gray-900'
+                        ? 'bg-[#ffd700] text-gray-950 shadow'
                         : idx === 1
                         ? 'bg-gray-300 text-gray-800'
                         : idx === 2
                         ? 'bg-amber-700 text-white'
-                        : 'bg-gray-100 text-gray-600'
+                        : 'bg-gray-100 text-gray-700'
                     }`}>
                       #{idx + 1}
                     </span>
                     <div>
-                      <p className="text-sm font-bold text-gray-900 line-clamp-1">{entry.userName}</p>
-                      <p className="text-xs text-gray-500 font-medium">{entry.category}</p>
+                      <p className="text-xs sm:text-sm font-bold text-gray-900 line-clamp-1">{entry.userName}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-gray-500 font-semibold">{entry.category}</span>
+                        {idx < 3 && (
+                          <span className="text-[9px] bg-[#ffd700]/30 text-emerald-950 font-bold px-1.5 rounded">
+                            🏆 মেডেলিস্ট
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-base font-black text-[#2c5f2d]">{entry.score}%</span>
+                    <span className="text-sm sm:text-base font-black text-[#2c5f2d]">{entry.score}%</span>
                     <p className="text-[10px] text-gray-400">{entry.date}</p>
                   </div>
                 </div>
@@ -418,13 +591,21 @@ export const QuizEngine: React.FC<QuizEngineProps> = ({ navigate }) => {
 
             <div className="mt-6 pt-4 border-t border-gray-100 text-center">
               <p className="text-xs text-gray-500 font-medium">
-                এজ ফাংশনের মাধ্যমে লাইভ স্কোরবোর্ড স্বয়ংক্রিয়ভাবে আপডেট হয়।
+                ফায়ারবেস ক্লাউডে তাৎক্ষণিক মেধা যাচাই ও স্বয়ংক্রিয় সনদপত্র সংযোজন।
               </p>
             </div>
           </div>
         </div>
 
       </div>
+
+      {/* Certificate Print Modal */}
+      {showCertModal && earnedCertificate && (
+        <CertificateView
+          certificate={earnedCertificate}
+          onClose={() => setShowCertModal(false)}
+        />
+      )}
     </div>
   );
 };

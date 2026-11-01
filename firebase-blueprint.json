@@ -69,6 +69,82 @@
       },
       "required": ["name", "subject"]
     },
+    "Course": {
+      "title": "Course",
+      "description": "Academic course offering",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 200 },
+        "level": { "type": "string", "maxLength": 100 },
+        "duration": { "type": "string", "maxLength": 100 },
+        "subjects": { "type": "array" },
+        "features": { "type": "array" },
+        "price": { "type": "string", "maxLength": 100 },
+        "popular": { "type": "boolean" },
+        "displayOrder": { "type": "number" }
+      },
+      "required": ["title", "price"]
+    },
+    "QuizQuestion": {
+      "title": "QuizQuestion",
+      "description": "Quiz Question with multiple options and correct answer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "category": { "type": "string", "maxLength": 50 },
+        "question": { "type": "string", "maxLength": 500 },
+        "options": { "type": "array" },
+        "correctAnswer": { "type": "number" },
+        "explanation": { "type": "string", "maxLength": 1000 },
+        "displayOrder": { "type": "number" }
+      },
+      "required": ["question", "category", "correctAnswer"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Student user profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 100 },
+        "studentName": { "type": "string", "maxLength": 100 },
+        "fatherName": { "type": "string", "maxLength": 100 },
+        "motherName": { "type": "string", "maxLength": 100 },
+        "photoUrl": { "type": "string", "maxLength": 1000 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "schoolName": { "type": "string", "maxLength": 150 },
+        "grade": { "type": "string", "maxLength": 100 },
+        "rollNo": { "type": "string", "maxLength": 50 },
+        "subjectGroup": { "type": "string", "maxLength": 100 },
+        "address": { "type": "string", "maxLength": 300 },
+        "enrolledCourses": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Certificate": {
+      "title": "Certificate",
+      "description": "Student certificate for Course Completion or Top-10 Merit",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userEmail": { "type": "string", "maxLength": 100 },
+        "studentName": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 200 },
+        "type": { "type": "string", "enum": ["merit_top10", "course_completion"] },
+        "description": { "type": "string", "maxLength": 1000 },
+        "issueDate": { "type": "string", "maxLength": 50 },
+        "rollNo": { "type": "string", "maxLength": 50 },
+        "certificateNumber": { "type": "string", "maxLength": 50 },
+        "score": { "type": "number" },
+        "rank": { "type": "number" },
+        "courseName": { "type": "string", "maxLength": 150 },
+        "issuedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["userId", "studentName", "title", "type", "certificateNumber"]
+    },
     "Slide": {
       "title": "Slide",
       "description": "Homepage hero slide item",
@@ -109,10 +185,12 @@
     },
     "Leaderboard": {
       "title": "Leaderboard",
-      "description": "Quiz high scores entry",
+      "description": "Quiz top-10 high scores entry",
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 100 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userEmail": { "type": "string", "maxLength": 100 },
         "userName": { "type": "string", "maxLength": 100 },
         "category": { "type": "string", "maxLength": 50 },
         "score": { "type": "number" },
@@ -143,6 +221,22 @@
       "schema": "TeacherProfile",
       "description": "Teachers profiles, subjects and details"
     },
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Offered courses managed by Admin"
+    },
+    "/questions/{questionId}": {
+      "schema": "QuizQuestion",
+      "description": "Question bank for quizzes managed by Admin"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Student profile with personal and academic info"
+    },
+    "/certificates/{certId}": {
+      "schema": "Certificate",
+      "description": "Issued merit and course completion certificates"
+    },
     "/slides/{slideId}": {
       "schema": "Slide",
       "description": "Homepage banner slideshow cards"
@@ -153,7 +247,7 @@
     },
     "/leaderboard/{entryId}": {
       "schema": "Leaderboard",
-      "description": "Quiz score rankings"
+      "description": "Quiz score top 10 rankings"
     }
   }
 }

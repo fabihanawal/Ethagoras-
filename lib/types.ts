@@ -37,6 +37,68 @@ export interface TeacherProfile {
   displayOrder?: number;
 }
 
+export interface Course {
+  id: string;
+  title: string;
+  level: string;
+  duration: string;
+  subjects: string[];
+  features: string[];
+  price: string;
+  popular?: boolean;
+  displayOrder?: number;
+}
+
+export interface QuizQuestion {
+  id: string;
+  category: 'math' | 'science' | 'english' | 'gk' | string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation?: string;
+  displayOrder?: number;
+}
+
+export interface QuizQuestionWithAnswer extends QuizQuestion {
+  correctAnswer: number;
+  explanation?: string;
+}
+
+export interface UserProfile {
+  uid: string;
+  email: string;
+  studentName: string;
+  fatherName: string;
+  motherName: string;
+  photoUrl?: string;
+  phone: string;
+  schoolName: string;
+  grade: string;
+  rollNo: string;
+  subjectGroup: string;
+  address: string;
+  enrolledCourses?: string[];
+  completedCourses?: string[];
+  updatedAt?: string;
+}
+
+export interface Certificate {
+  id: string;
+  userId: string;
+  userEmail: string;
+  studentName: string;
+  title: string;
+  type: 'merit_top10' | 'course_completion';
+  description: string;
+  issueDate: string;
+  rollNo?: string;
+  certificateNumber: string;
+  score?: number;
+  rank?: number;
+  courseName?: string;
+  issuedBy: string;
+}
+
 export interface Slide {
   id: string;
   title: string;
@@ -49,25 +111,16 @@ export interface Slide {
   active: boolean;
 }
 
-export interface QuizQuestion {
-  id: string;
-  category: 'math' | 'science' | 'english' | 'gk';
-  question: string;
-  options: string[];
-}
-
-export interface QuizQuestionWithAnswer extends QuizQuestion {
-  correctAnswer: number;
-  explanation?: string;
-}
-
 export interface LeaderboardEntry {
   id: string;
+  userId?: string;
+  userEmail?: string;
   userName: string;
   category: string;
   score: number;
   total: number;
   date: string;
+  rank?: number;
 }
 
 export interface BookingSubmission {

@@ -17,8 +17,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, navigate, contactS
     { label: 'হোম (Home)', route: '#/' },
     { label: 'কোর্সসমূহ (Courses)', route: '#/courses' },
     { label: 'শিক্ষক ও পরিচালক', route: '#/faculty', icon: Users },
-    { label: 'কুইজ ইঞ্জিন (Quiz)', route: '#/quiz' },
+    { label: 'কুইজ ও লিডারবোর্ড', route: '#/quiz' },
     { label: 'অনলাইন ভর্তি', route: '#/admission' },
+    ...(user ? [{ label: 'আমার প্রোফাইল ও সনদ', route: '#/profile', icon: Award }] : []),
     { label: 'অ্যাডমিন', route: '#/admin', icon: ShieldCheck, adminOnly: true },
   ];
 
@@ -90,24 +91,30 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, navigate, contactS
             {/* Google Authentication Control */}
             {user ? (
               <div className="flex items-center gap-2 bg-gray-50 p-1.5 pl-3 rounded-2xl border border-gray-200">
-                {user.photoURL ? (
-                  <img
-                    src={user.photoURL}
-                    alt={user.displayName || 'User'}
-                    className="w-7 h-7 rounded-xl object-cover ring-2 ring-[#2c5f2d]/30"
-                  />
-                ) : (
-                  <div className="w-7 h-7 rounded-xl bg-[#2c5f2d] text-[#ffd700] flex items-center justify-center font-bold text-xs">
-                    {user.email?.charAt(0).toUpperCase()}
+                <div
+                  onClick={() => navigate('#/profile')}
+                  className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 p-1 rounded-xl transition-colors"
+                  title="আমার প্রোফাইল ও সনদপত্র দেখুন"
+                >
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName || 'User'}
+                      className="w-7 h-7 rounded-xl object-cover ring-2 ring-[#2c5f2d]/30"
+                    />
+                  ) : (
+                    <div className="w-7 h-7 rounded-xl bg-[#2c5f2d] text-[#ffd700] flex items-center justify-center font-bold text-xs">
+                      {user.email?.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="flex flex-col text-left mr-1">
+                    <span className="text-xs font-bold text-gray-900 leading-tight max-w-[100px] truncate">
+                      {user.displayName?.split(' ')[0] || user.email?.split('@')[0]}
+                    </span>
+                    <span className={`text-[10px] font-bold ${isAdmin ? 'text-amber-600' : 'text-emerald-700'}`}>
+                      {isAdmin ? '🛡️ অ্যাডমিন' : '👤 শিক্ষার্থী'}
+                    </span>
                   </div>
-                )}
-                <div className="flex flex-col text-left mr-1">
-                  <span className="text-xs font-bold text-gray-900 leading-tight max-w-[100px] truncate">
-                    {user.displayName?.split(' ')[0] || user.email?.split('@')[0]}
-                  </span>
-                  <span className={`text-[10px] font-bold ${isAdmin ? 'text-amber-600' : 'text-emerald-700'}`}>
-                    {isAdmin ? '🛡️ অ্যাডমিন' : '👤 শিক্ষার্থী'}
-                  </span>
                 </div>
                 <button
                   onClick={signOut}

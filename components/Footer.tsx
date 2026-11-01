@@ -16,7 +16,7 @@ export const Footer: React.FC<FooterProps> = ({
   const phone = contactSettings?.phone || '০১৭০০-০০০০০০, ০১৮০০-০০০০০০';
   const whatsapp = contactSettings?.whatsapp || '+8801700000000';
   const email = contactSettings?.email || 'info@ethagoras-naogaon.edu.bd';
-  const address = contactSettings?.address || 'চকদেবপাড়া, বালুডাঙ্গা বাস স্ট্যান্ড সংলগ্ন, নওগাঁ সদর, নওগাঁ।';
+  const address = contactSettings?.address || 'বদলগাছী সদর, বদলগাছী, নওগাঁ।';
 
   const cleanWhatsappNumber = whatsapp.replace(/[^0-9]/g, '');
 
@@ -205,9 +205,9 @@ export const Footer: React.FC<FooterProps> = ({
         <div className="pt-8 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-4">
           <p>© {new Date().getFullYear()} ইথাগোরাস প্রাইভেট (Ether Education Platform). সর্বস্বত্ব সংরক্ষিত।</p>
           <div className="flex items-center gap-4 text-gray-400 font-medium">
-            <span>নওগাঁ সদর, নওগাঁ, বাংলাদেশ</span>
+            <span>বদলগাছী সদর, বদলগাছী, নওগাঁ।</span>
             <span>•</span>
-            <span className="text-[#ffd700]">Firebase Firestore & Auth Connected</span>
+            <span className="text-[#ffd700]">developed by RSTSBD</span>
           </div>
         </div>
       </div>

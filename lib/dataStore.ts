@@ -7,13 +7,14 @@ import {
   SocialSettings,
   DirectorProfile,
   TeacherProfile,
+  Course,
 } from './types';
 
 export const INITIAL_CONTACT_SETTINGS: ContactSettings = {
   phone: '০১৭০০-০০০০০০, ০১৮০০-০০০০০০',
   whatsapp: '+8801700000000',
   email: 'info@ethagoras-naogaon.edu.bd',
-  address: 'চকদেবপাড়া, বালুডাঙ্গা বাস স্ট্যান্ড সংলগ্ন, নওগাঁ সদর, নওগাঁ।',
+  address: 'বদলগাছী সদর, বদলগাছী, নওগাঁ।',
   updatedAt: new Date().toISOString(),
 };
 
@@ -89,6 +90,71 @@ export const INITIAL_TEACHERS: TeacherProfile[] = [
   },
 ];
 
+export const INITIAL_COURSES: Course[] = [
+  {
+    id: 'c-1',
+    title: 'এসএসসি বিজ্ঞান বিশেষ ব্যাচ (Special Science)',
+    level: 'Class 9 & 10',
+    duration: '১০ মাস মেয়াদী',
+    subjects: ['উচ্চতর গণিত', 'পদার্থবিজ্ঞান', 'রসায়ন', 'জীববিজ্ঞান'],
+    features: [
+      'সাপ্তাহিক ওএমআর মডেল টেস্ট ও র‍্যাংকিং',
+      'বোর্ড প্রশ্ন সমাধান ও শর্টকাট টেকনিক',
+      'অধ্যায়ভিত্তিক প্রিন্টেড লেকচার শিট',
+      'কোর্স শেষে স্পেশাল সার্টিফিকেট প্রদান',
+    ],
+    price: '৳ ৩,৫০০ / মাস',
+    popular: true,
+    displayOrder: 1,
+  },
+  {
+    id: 'c-2',
+    title: 'এইচএসসি একাডেমিক ও প্রি-এডমিশন ব্যাচ',
+    level: 'Class 11 & 12',
+    duration: '১২ মাস মেয়াদী',
+    subjects: ['পদার্থবিজ্ঞান ১ম ও ২য়', 'উচ্চতর গণিত ১ম ও ২য়', 'রসায়ন'],
+    features: [
+      'বুয়েট ও মেডিকেল স্ট্যান্ডার্ড কনসেপ্ট ক্লিয়ারিং',
+      'প্রতি সপ্তাহে মডেল টেস্ট ও এনালাইসিস রিপোর্ট',
+      'অভিজ্ঞ প্রকৌশলী শিক্ষকদের সাথে সরাসরি প্রবলেম সলভিং',
+      'কোর্স সম্পূর্ণের পর অফিসিয়াল সনদপত্র',
+    ],
+    price: '৳ ৪,২০০ / মাস',
+    popular: false,
+    displayOrder: 2,
+  },
+  {
+    id: 'c-3',
+    title: 'অলিম্পিয়াড ম্যাথ ও লজিক ফাউন্ডেশন',
+    level: 'Class 6 to 8',
+    duration: '৬ মাস মেয়াদী',
+    subjects: ['নাম্বার থিওরি', 'জ্যামিতি ও ক্ষেত্রফল', 'বীজগণিত ও কম্বিনেটোরিক্স'],
+    features: [
+      'জাতীয় গণিত অলিম্পিয়াডের প্রস্তুতি',
+      'ক্রিটিকাল থিংকিং ও সমস্যা সমাধানের দক্ষতা',
+      'আন্তর্জাতিক মানের মডেল টেস্ট ও স্বীকৃতি সনদ',
+    ],
+    price: '৳ ২,৫০০ / মাস',
+    popular: false,
+    displayOrder: 3,
+  },
+  {
+    id: 'c-4',
+    title: 'ইংরেজি গ্রামার ও কমিউনিকেশন মাস্টারক্লাস',
+    level: 'সকল শ্রেণীর জন্য',
+    duration: '৩ মাস ক্র্যাশ কোর্স',
+    subjects: ['Advanced Grammar', 'Vocabulary Mastery', 'Spoken Fluency'],
+    features: [
+      'পাবলিক স্পিকিং ও প্রেজেন্টেশন স্কিল',
+      'দৈনন্দিন প্র্যাকটিস সেশন ও অডিও-ভিডিও ল্যাব',
+      'কোর্স সমাপ্তির পর ভেরিফায়েড সার্টিফিকেট প্রদান',
+    ],
+    price: '৳ ২,০০০ / কোর্স',
+    popular: false,
+    displayOrder: 4,
+  },
+];
+
 export const INITIAL_SLIDES: Slide[] = [
   {
     id: 'slide-1',
@@ -104,7 +170,7 @@ export const INITIAL_SLIDES: Slide[] = [
   {
     id: 'slide-2',
     title: 'জ্ঞান ও মেধা যাচাই করুন আমাদের স্মার্ট কুইজ ইঞ্জিনে',
-    subtitle: 'গণিত, বিজ্ঞান, ইংরেজি এবং সাধারণ জ্ঞানে আপনার প্রস্তুতি যাচাই করে জিতে নিন স্কলারশিপ।',
+    subtitle: 'গণিত, বিজ্ঞান, ইংরেজি এবং সাধারণ জ্ঞানে আপনার প্রস্তুতি যাচাই করে জিতে নিন শীর্ষ ১০ মেধা সনদ।',
     badge: 'সাপ্তাহিক কুইজ কম্পিটিশন',
     imageUrl: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=1600&q=80',
     ctaText: 'কুইজে অংশগ্রহণ করুন',
@@ -133,6 +199,7 @@ export const SECURE_QUIZ_DATABASE: QuizQuestionWithAnswer[] = [
     options: ['অতিভুজ² = লম্ব² + ভূমি²', 'অতিভুজ = লম্ব + ভূমি', 'লম্ব² = অতিভুজ² + ভূমি²', 'ভূমি² = লম্ব² + অতিভুজ²'],
     correctAnswer: 0,
     explanation: 'সমকোণী ত্রিভুজের অতিভুজের উপর অঙ্কিত বর্গক্ষেত্র অপর দুই বাহুর উপর অঙ্কিত বর্গক্ষেত্রদ্বয়ের সমষ্টির সমান।',
+    displayOrder: 1,
   },
   {
     id: 'm2',
@@ -141,6 +208,7 @@ export const SECURE_QUIZ_DATABASE: QuizQuestionWithAnswer[] = [
     options: ['৪৫°', '৬০°', '৯০°', '১০০°'],
     correctAnswer: 1,
     explanation: 'ত্রিভুজের তিন কোণের সমষ্টি ১৮০°। সমবাহু ত্রিভুজের তিন কোণ সমান হওয়ায় প্রতিটি কোণ ১৮০/৩ = ৬০°।',
+    displayOrder: 2,
   },
   {
     id: 'm3',
@@ -149,6 +217,7 @@ export const SECURE_QUIZ_DATABASE: QuizQuestionWithAnswer[] = [
     options: ['১', '২', '৩', '১০'],
     correctAnswer: 2,
     explanation: '১০³ = ১০০০, অতএব log₁₀(1000) = ৩।',
+    displayOrder: 3,
   },
   {
     id: 's1',
@@ -157,6 +226,7 @@ export const SECURE_QUIZ_DATABASE: QuizQuestionWithAnswer[] = [
     options: ['কঠিন', 'তরল', 'প্লাজমা', 'গ্যাসীয়'],
     correctAnswer: 2,
     explanation: 'উচ্চ তাপমাত্রায় আয়নিত গ্যাসীয় অবস্থাকে প্লাজমা অবস্থা বলা হয়।',
+    displayOrder: 4,
   },
   {
     id: 's2',
@@ -165,6 +235,7 @@ export const SECURE_QUIZ_DATABASE: QuizQuestionWithAnswer[] = [
     options: ['যকৃৎ (Liver)', 'ত্বক (Skin)', 'হৃৎপিণ্ড (Heart)', 'ফুসফুস (Lungs)'],
     correctAnswer: 1,
     explanation: 'মানবদেহের সামগ্রিক বাহ্যিক বৃহত্তম অঙ্গ হলো ত্বক।',
+    displayOrder: 5,
   },
   {
     id: 'e1',
@@ -173,6 +244,7 @@ export const SECURE_QUIZ_DATABASE: QuizQuestionWithAnswer[] = [
     options: ['Lazy', 'Industrious', 'Careless', 'Slow'],
     correctAnswer: 1,
     explanation: '"Diligent" means hardworking or industrious.',
+    displayOrder: 6,
   },
   {
     id: 'e2',
@@ -186,6 +258,7 @@ export const SECURE_QUIZ_DATABASE: QuizQuestionWithAnswer[] = [
     ],
     correctAnswer: 0,
     explanation: 'Present simple passive voice structure: Object + is/am/are + past participle (V3) + by + Subject.',
+    displayOrder: 7,
   },
   {
     id: 'gk1',
@@ -194,6 +267,7 @@ export const SECURE_QUIZ_DATABASE: QuizQuestionWithAnswer[] = [
     options: ['শালবন বিহার', 'সোমপুর মহাবিহার', 'ময়নামতি বিহার', 'আনন্দ বিহার'],
     correctAnswer: 1,
     explanation: 'পাল রাজা ধর্মপাল অষ্টম শতকের শেষের দিকে নওগাঁর বদলগাছীতে সোমপুর মহাবিহার প্রতিষ্ঠা করেন।',
+    displayOrder: 8,
   },
   {
     id: 'gk2',
@@ -202,15 +276,30 @@ export const SECURE_QUIZ_DATABASE: QuizQuestionWithAnswer[] = [
     options: ['রংপুর', 'রাজশাহী', 'ঢাকা', 'খুলনা'],
     correctAnswer: 1,
     explanation: 'নওগাঁ জেলা রাজশাহী বিভাগের বরেন্দ্র অঞ্চলের একটি ঐতিহ্যবাহী জেলা।',
+    displayOrder: 9,
+  },
+  {
+    id: 'gk3',
+    category: 'gk',
+    question: 'পীথাগোরাস কোন দেশের বিখ্যাত গণিতবিদ ও দার্শনিক ছিলেন?',
+    options: ['প্রাচীন গ্রিস (Greece)', 'রোম (Rome)', 'মিশর (Egypt)', 'পারস্য (Persia)'],
+    correctAnswer: 0,
+    explanation: 'পীথাগোরাস খ্রিস্টপূর্ব ষষ্ঠ শতকে প্রাচীন গ্রিসের সামোস দ্বীপে জন্মগ্রহণ করেন।',
+    displayOrder: 10,
   },
 ];
 
 export const INITIAL_LEADERBOARD: LeaderboardEntry[] = [
-  { id: 'lb-1', userName: 'তানভীর আহমেদ (Tanvir)', category: 'বিজ্ঞান', score: 95, total: 100, date: '২০২৫-০১-১০' },
-  { id: 'lb-2', userName: 'সাদিয়া জাহান (Sadia)', category: 'গণিত', score: 92, total: 100, date: '২০২৫-০১-১২' },
-  { id: 'lb-3', userName: 'রাকিবুল হাসান (Rakib)', category: 'ইংরেজি', score: 88, total: 100, date: '২০২৫-০১-১৫' },
-  { id: 'lb-4', userName: 'আফরিন সুলতানা (Afrin)', category: 'সাধারণ জ্ঞান', score: 85, total: 100, date: '২০২৫-০১-১৬' },
-  { id: 'lb-5', userName: 'মাহমুদ উল্লাহ (Mahmud)', category: 'গণিত', score: 82, total: 100, date: '২০২৫-০১-১৮' },
+  { id: 'lb-1', userName: 'তানভীর আহমেদ (Tanvir)', category: 'বিজ্ঞান', score: 98, total: 100, date: '২০২৫-০১-১০', rank: 1 },
+  { id: 'lb-2', userName: 'সাদিয়া জাহান (Sadia)', category: 'গণিত', score: 95, total: 100, date: '২০২৫-০১-১২', rank: 2 },
+  { id: 'lb-3', userName: 'রাকিবুল হাসান (Rakib)', category: 'ইংরেজি', score: 92, total: 100, date: '২০২৫-০১-১৫', rank: 3 },
+  { id: 'lb-4', userName: 'আফরিন সুলতানা (Afrin)', category: 'সাধারণ জ্ঞান', score: 88, total: 100, date: '২০২৫-০১-১৬', rank: 4 },
+  { id: 'lb-5', userName: 'মাহমুদ উল্লাহ (Mahmud)', category: 'গণিত', score: 85, total: 100, date: '২০২৫-০১-১৮', rank: 5 },
+  { id: 'lb-6', userName: 'ফারজানা আক্তার (Farzana)', category: 'বিজ্ঞান', score: 84, total: 100, date: '২০২৫-০১-১৯', rank: 6 },
+  { id: 'lb-7', userName: 'হাসিবুল ইসলাম (Hasibul)', category: 'সাধারণ জ্ঞান', score: 82, total: 100, date: '২০২৫-০১-২০', rank: 7 },
+  { id: 'lb-8', userName: 'নুসরাত জাহান (Nusrat)', category: 'গণিত', score: 80, total: 100, date: '২০২৫-০১-২১', rank: 8 },
+  { id: 'lb-9', userName: 'মেহেদী হাসান (Mehedi)', category: 'ইংরেজি', score: 78, total: 100, date: '২০২৫-০১-২২', rank: 9 },
+  { id: 'lb-10', userName: 'সাব্বির আহমেদ (Sabbir)', category: 'বিজ্ঞান', score: 75, total: 100, date: '২০২৫-০১-২৩', rank: 10 },
 ];
 
 export const INITIAL_BOOKINGS: BookingSubmission[] = [

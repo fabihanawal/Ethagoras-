@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ShieldCheck,
   Plus,
@@ -24,6 +24,13 @@ import {
   LogIn,
   AlertCircle,
   ExternalLink,
+  BookOpen,
+  Award,
+  HelpCircle,
+  FileText,
+  Printer,
+  Sparkles,
+  Search,
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import {
@@ -33,6 +40,9 @@ import {
   SocialSettings,
   DirectorProfile,
   TeacherProfile,
+  Course,
+  QuizQuestion,
+  Certificate,
 } from '../lib/types';
 import {
   updateContactSettings,
@@ -45,7 +55,17 @@ import {
   deleteSlide,
   updateBookingStatus,
   seedInitialDataToFirestore,
+  subscribeCourses,
+  saveCourse,
+  deleteCourse,
+  subscribeQuestions,
+  saveQuestion,
+  deleteQuestion,
+  subscribeAllCertificates,
+  issueCertificate,
+  deleteCertificate,
 } from '../lib/firestoreService';
+import { CertificateView } from './CertificateView';
 
 interface AdminDashboardProps {
   slides: Slide[];
@@ -54,6 +74,7 @@ interface AdminDashboardProps {
   socialSettings: SocialSettings;
   director: DirectorProfile;
   teachers: TeacherProfile[];
+  courses?: Course[];
   navigate: (route: string) => void;
 }
 
@@ -64,13 +85,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   socialSettings,
   director,
   teachers,
+  courses,
   navigate,
 }) => {
   const { user, isAdmin, adminEmails, signInWithGoogle, signOut } = useAuth();
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
-    'contact_social' | 'director' | 'teachers' | 'slides' | 'bookings' | 'admin_emails' | 'quickshare'
+    'contact_social' | 'courses' | 'questions' | 'certificates' | 'director' | 'teachers' | 'slides' | 'bookings' | 'admin_emails' | 'quickshare'
   >('contact_social');
 
   // Copied link toast
@@ -83,6 +105,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [contactForm, setContactForm] = useState<ContactSettings>(contactSettings);
   const [socialForm, setSocialForm] = useState<SocialSettings>(socialSettings);
   const [directorForm, setDirectorForm] = useState<DirectorProfile>(director);
+
+  // Courses state & modal
+  const [coursesList, setCoursesList] = useState<Course[]>(courses || []);
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
+  const [courseSubjectsText, setCourseSubjectsText] = useState('');
+  const [courseFeaturesText, setCourseFeaturesText] = useState('');
+
+  // Quiz Questions state & modal
+  const [questionsList, setQuestionsList] = useState<QuizQuestion[]>([]);
+  const [editingQuestion, setEditingQuestion] = useState<QuizQuestion | null>(null);
+  const [isQuestionModalOpen, setIsQuestionModalOpen] = useState(false);
+  const [questionCategoryFilter, setQuestionCategoryFilter] = useState('all');
+
+  // Certificates state & modal
+  const [certificatesList, setCertificatesList] = useState<Certificate[]>([]);
+  const [isIssueCertModalOpen, setIsIssueCertModalOpen] = useState(false);
+  const [selectedCertForPreview, setSelectedCertForPreview] = useState<Certificate | null>(null);
+  const [newCertForm, setNewCertForm] = useState<Partial<Certificate>>({
+    studentName: '',
+    userEmail: '',
+    courseName: 'এসএসসি স্পেশাল রিভিশন ব্যাচ',
+    rollNo: '',
+    type: 'course_completion',
+    description: 'ইথাগোরাস প্রাইভেটের নির্ধারিত কোর্স কারিকুলাম সফলভাবে সম্পন্ন করায় এই প্রশংসাপত্র প্রদান করা হলো।',
+    issuedBy: 'পরিচালক, ইথাগোরাস প্রাইভেট (নওগাঁ)',
+  });
+
+  // Subscribe to real-time courses, questions and all certificates
+  useEffect(() => {
+    const unsubCourses = subscribeCourses((data) => setCoursesList(data));
+    const unsubQuestions = subscribeQuestions((data) => setQuestionsList(data));
+    const unsubCertificates = subscribeAllCertificates((data) => setCertificatesList(data));
+    return () => {
+      unsubCourses();
+      unsubQuestions();
+      unsubCertificates();
+    };
+  }, []);
 
   // Teacher modal / form
   const [editingTeacher, setEditingTeacher] = useState<TeacherProfile | null>(null);
@@ -163,6 +224,171 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       showNotification('শিক্ষকের তথ্য সফলভাবে সংরক্ষিত হয়েছে!');
     } catch (err) {
       alert('শিক্ষকের তথ্য সংরক্ষণে ত্রুটি হয়েছে।');
+    }
+  };
+
+  // Course Handlers
+  const handleOpenAddCourse = () => {
+    setEditingCourse({
+      id: `course-${Date.now()}`,
+      title: '',
+      level: '৮ম - ১০ম শ্রেণী',
+      duration: '৬ মাস',
+      subjects: ['সাধারণ গণিত', 'উচ্চতর গণিত', 'পদার্থবিজ্ঞান'],
+      features: ['সাপ্তাহিক ও মাসিক টেস্ট', 'স্মার্ট নোটস ও শিট'],
+      price: '৳ ৩,৫০০ / মাস',
+      popular: false,
+      displayOrder: coursesList.length + 1,
+    });
+    setCourseSubjectsText('সাধারণ গণিত, উচ্চতর গণিত, পদার্থবিজ্ঞান');
+    setCourseFeaturesText('সাপ্তাহিক ও মাসিক টেস্ট, স্মার্ট নোটস ও শিট');
+    setIsCourseModalOpen(true);
+  };
+
+  const handleOpenEditCourse = (c: Course) => {
+    setEditingCourse({ ...c });
+    setCourseSubjectsText((c.subjects || []).join(', '));
+    setCourseFeaturesText((c.features || []).join(', '));
+    setIsCourseModalOpen(true);
+  };
+
+  const handleSaveCourseForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCourse) return;
+    try {
+      const subs = courseSubjectsText.split(',').map((s) => s.trim()).filter(Boolean);
+      const feats = courseFeaturesText.split(',').map((f) => f.trim()).filter(Boolean);
+      const updated: Course = {
+        ...editingCourse,
+        subjects: subs.length > 0 ? subs : ['সকল বিষয়'],
+        features: feats.length > 0 ? feats : ['বিশেষ ক্লাস ও নোট'],
+      };
+      await saveCourse(updated);
+      setIsCourseModalOpen(false);
+      setEditingCourse(null);
+      showNotification('কোর্স তথ্য সফলভাবে সংরক্ষিত হয়েছে!');
+    } catch (err) {
+      alert('কোর্স সংরক্ষণে সমস্যা হয়েছে।');
+    }
+  };
+
+  const handleDeleteCourseItem = async (id: string, title: string) => {
+    if (confirm(`আপনি কি "${title}" কোর্সটি মুছে ফেলতে চান?`)) {
+      try {
+        await deleteCourse(id);
+        showNotification('কোর্সটি সফলভাবে মুছে ফেলা হয়েছে।');
+      } catch (err) {
+        alert('কোর্স মুছতে সমস্যা হয়েছে।');
+      }
+    }
+  };
+
+  // Quiz Question Handlers
+  const handleOpenAddQuestion = () => {
+    setEditingQuestion({
+      id: `q-${Date.now()}`,
+      category: 'math',
+      question: '',
+      options: ['', '', '', ''],
+      correctAnswer: 0,
+      explanation: '',
+      displayOrder: questionsList.length + 1,
+    });
+    setIsQuestionModalOpen(true);
+  };
+
+  const handleOpenEditQuestion = (q: QuizQuestion) => {
+    const opts = q.options?.length === 4 ? [...q.options] : [...(q.options || []), '', '', '', ''].slice(0, 4);
+    setEditingQuestion({
+      ...q,
+      options: opts,
+    });
+    setIsQuestionModalOpen(true);
+  };
+
+  const handleSaveQuestionForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingQuestion) return;
+    if (editingQuestion.options.some((opt) => !opt.trim())) {
+      alert('অনুগ্রহ করে ৪টি বিকল্প অপশনই পূরণ করুন।');
+      return;
+    }
+    try {
+      await saveQuestion(editingQuestion);
+      setIsQuestionModalOpen(false);
+      setEditingQuestion(null);
+      showNotification('কুইজ প্রশ্ন সফলভাবে সংরক্ষিত হয়েছে!');
+    } catch (err) {
+      alert('প্রশ্ন সংরক্ষণে সমস্যা হয়েছে।');
+    }
+  };
+
+  const handleDeleteQuestionItem = async (id: string, qText: string) => {
+    if (confirm(`আপনি কি এই প্রশ্নটি মুছে ফেলতে চান?\n"${qText.substring(0, 40)}..."`)) {
+      try {
+        await deleteQuestion(id);
+        showNotification('প্রশ্নটি মুছে ফেলা হয়েছে।');
+      } catch (err) {
+        alert('প্রশ্ন মুছতে সমস্যা হয়েছে।');
+      }
+    }
+  };
+
+  // Certificate Issuance Handlers
+  const handleIssueCertificateForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCertForm.studentName || !newCertForm.userEmail) {
+      alert('শিক্ষার্থীর নাম ও জিমেইল আইডি আবশ্যক!');
+      return;
+    }
+    try {
+      const certId = `cert-${Date.now()}`;
+      const prefix = newCertForm.type === 'merit_top10' ? 'ETH-MERIT' : 'ETH-CRS';
+      const year = new Date().getFullYear();
+      const rand = Math.floor(1000 + Math.random() * 9000);
+      const certNum = `${prefix}-${year}-${rand}`;
+
+      const certificate: Certificate = {
+        id: certId,
+        userId: newCertForm.userEmail.trim().toLowerCase(),
+        userEmail: newCertForm.userEmail.trim().toLowerCase(),
+        studentName: newCertForm.studentName.trim(),
+        title: newCertForm.type === 'merit_top10' ? 'মেধা ও শ্রেষ্ঠত্ব সনদপত্র' : 'কোর্স সমাপন প্রশংসাপত্র',
+        type: (newCertForm.type as 'merit_top10' | 'course_completion') || 'course_completion',
+        description: newCertForm.description || 'ইথাগোরাস প্রাইভেটের নির্ধারিত কোর্স সফলভাবে সম্পন্ন করায় এই প্রশংসাপত্র প্রদান করা হলো।',
+        issueDate: new Date().toLocaleDateString('bn-BD', { year: 'numeric', month: 'long', day: 'numeric' }),
+        rollNo: newCertForm.rollNo?.trim() || undefined,
+        certificateNumber: certNum,
+        courseName: newCertForm.courseName || 'ইথাগোরাস স্পেশাল কোর্স',
+        issuedBy: newCertForm.issuedBy || 'পরিচালক, ইথাগোরাস প্রাইভেট (নওগাঁ)',
+      };
+
+      await issueCertificate(certificate);
+      setIsIssueCertModalOpen(false);
+      setNewCertForm({
+        studentName: '',
+        userEmail: '',
+        courseName: 'এসএসসি স্পেশাল রিভিশন ব্যাচ',
+        rollNo: '',
+        type: 'course_completion',
+        description: 'ইথাগোরাস প্রাইভেটের নির্ধারিত কোর্স কারিকুলাম সফলভাবে সম্পন্ন করায় এই প্রশংসাপত্র প্রদান করা হলো।',
+        issuedBy: 'পরিচালক, ইথাগোরাস প্রাইভেট (নওগাঁ)',
+      });
+      showNotification(`সনদপত্র (${certNum}) সফলভাবে ইস্যু করা হয়েছে!`);
+      setSelectedCertForPreview(certificate);
+    } catch (err) {
+      alert('সনদপত্র ইস্যু করতে সমস্যা হয়েছে।');
+    }
+  };
+
+  const handleDeleteCert = async (id: string, name: string) => {
+    if (confirm(`আপনি কি "${name}" এর সনদপত্রটি মুছে ফেলতে চান?`)) {
+      try {
+        await deleteCertificate(id);
+        showNotification('সনদপত্রটি মুছে ফেলা হয়েছে।');
+      } catch (err) {
+        alert('সনদপত্র মুছতে সমস্যা হয়েছে।');
+      }
     }
   };
 
@@ -379,6 +605,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveTab('courses')}
+          className={`px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
+            activeTab === 'courses' ? 'bg-[#2c5f2d] text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          কোর্স ব্যবস্থাপনা ({coursesList.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('questions')}
+          className={`px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
+            activeTab === 'questions' ? 'bg-[#2c5f2d] text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <HelpCircle className="w-4 h-4" />
+          কুইজ প্রশ্ন ব্যাংক ({questionsList.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('certificates')}
+          className={`px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
+            activeTab === 'certificates' ? 'bg-[#2c5f2d] text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <Award className="w-4 h-4" />
+          সনদপত্র ইস্যু ({certificatesList.length})
+        </button>
+
+        <button
           onClick={() => setActiveTab('director')}
           className={`px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
             activeTab === 'director' ? 'bg-[#2c5f2d] text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -567,6 +823,331 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           </div>
         </form>
+      )}
+
+      {/* Tab: Courses Management */}
+      {activeTab === 'courses' && (
+        <div className="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-md space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+            <div>
+              <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-[#2c5f2d]" />
+                কোর্স ও ব্যাচ ব্যবস্থাপনা
+              </h3>
+              <p className="text-xs text-gray-500 font-medium">
+                নতুন কোর্স সংযোজন, ফি ও মেয়াদ নির্ধারণ, বিষয়াবলী এবং সুবিধা সম্পাদনা করুন।
+              </p>
+            </div>
+            <button
+              onClick={handleOpenAddCourse}
+              className="px-4 py-2.5 rounded-2xl bg-[#2c5f2d] hover:bg-[#224b23] text-white font-bold text-xs sm:text-sm shadow flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4 text-[#ffd700]" />
+              <span>নতুন কোর্স যোগ করুন</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {coursesList.map((course) => (
+              <div
+                key={course.id}
+                className="bg-gray-50 rounded-3xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200">
+                      {course.level}
+                    </span>
+                    {course.popular && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-[#ffd700] text-gray-950 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        জনপ্রিয়
+                      </span>
+                    )}
+                  </div>
+
+                  <h4 className="text-lg font-black text-gray-900 mb-2 leading-tight">
+                    {course.title}
+                  </h4>
+
+                  <div className="flex items-center justify-between text-xs font-bold text-gray-600 mb-4 pb-3 border-b border-gray-200">
+                    <span>মেয়াদ: {course.duration}</span>
+                    <span className="text-[#2c5f2d] text-sm font-black">{course.price}</span>
+                  </div>
+
+                  <div className="space-y-3 mb-4">
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase">বিষয়সমূহ:</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {course.subjects?.map((sub, i) => (
+                          <span
+                            key={i}
+                            className="text-[11px] bg-white px-2 py-0.5 rounded-lg border border-gray-200 text-gray-700 font-medium"
+                          >
+                            {sub}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[11px] font-bold text-gray-400 uppercase">সুবিধাসমূহ:</p>
+                      <ul className="text-xs text-gray-600 space-y-1 mt-1">
+                        {course.features?.slice(0, 3).map((feat, i) => (
+                          <li key={i} className="flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span className="truncate">{feat}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={() => handleOpenEditCourse(course)}
+                    className="p-2 rounded-xl bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 text-xs font-bold flex items-center gap-1"
+                    title="সম্পাদনা করুন"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-[#2c5f2d]" />
+                    <span>এডিট</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCourseItem(course.id, course.title)}
+                    className="p-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold flex items-center gap-1"
+                    title="কোর্স মুছুন"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>মুছুন</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Quiz Questions Bank */}
+      {activeTab === 'questions' && (
+        <div className="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-md space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+            <div>
+              <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-[#2c5f2d]" />
+                কুইজ প্রশ্ন ব্যাংক ও কন্টেন্ট ব্যবস্থাপনা
+              </h3>
+              <p className="text-xs text-gray-500 font-medium">
+                অনলাইন কুইজ ইঞ্জিনের প্রশ্নাবলী, বিকল্প উত্তর ও সমাধান সরাসরি এখান থেকে পরিচালনা করুন।
+              </p>
+            </div>
+            <button
+              onClick={handleOpenAddQuestion}
+              className="px-4 py-2.5 rounded-2xl bg-[#2c5f2d] hover:bg-[#224b23] text-white font-bold text-xs sm:text-sm shadow flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4 text-[#ffd700]" />
+              <span>নতুন প্রশ্ন যোগ করুন</span>
+            </button>
+          </div>
+
+          {/* Category Filter */}
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'all', label: 'সকল বিষয়' },
+              { id: 'math', label: 'গণিত' },
+              { id: 'science', label: 'বিজ্ঞান' },
+              { id: 'english', label: 'ইংরেজি' },
+              { id: 'gk', label: 'সাধারণ জ্ঞান' },
+            ].map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setQuestionCategoryFilter(cat.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  questionCategoryFilter === cat.id
+                    ? 'bg-[#2c5f2d] text-white shadow'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="space-y-4">
+            {questionsList
+              .filter((q) => questionCategoryFilter === 'all' || q.category === questionCategoryFilter)
+              .map((q, idx) => (
+                <div
+                  key={q.id}
+                  className="bg-gray-50 rounded-2xl p-5 border border-gray-200 hover:border-emerald-300 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="w-7 h-7 rounded-lg bg-[#2c5f2d]/10 text-[#2c5f2d] font-black text-xs flex items-center justify-center shrink-0">
+                        {idx + 1}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-gray-200 text-gray-800">
+                        {q.category}
+                      </span>
+                      <h4 className="font-bold text-gray-900 text-sm sm:text-base">
+                        {q.question}
+                      </h4>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleOpenEditQuestion(q)}
+                        className="p-1.5 rounded-lg text-[#2c5f2d] hover:bg-emerald-50 text-xs font-bold"
+                        title="প্রশ্ন সম্পাদনা করুন"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteQuestionItem(q.id, q.question)}
+                        className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 text-xs font-bold"
+                        title="প্রশ্ন মুছুন"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-200">
+                    {q.options?.map((opt, oIdx) => {
+                      const isCorrect = oIdx === q.correctAnswer;
+                      return (
+                        <div
+                          key={oIdx}
+                          className={`px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2 ${
+                            isCorrect
+                              ? 'bg-emerald-100/70 border border-emerald-400 text-emerald-900 font-bold'
+                              : 'bg-white border border-gray-200 text-gray-700'
+                          }`}
+                        >
+                          <span
+                            className={`w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold ${
+                              isCorrect ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {['ক', 'খ', 'গ', 'ঘ'][oIdx] || oIdx + 1}
+                          </span>
+                          <span className="truncate">{opt}</span>
+                          {isCorrect && (
+                            <span className="ml-auto text-[10px] bg-emerald-700 text-white px-1.5 py-0.5 rounded">
+                              সঠিক উত্তর
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {q.explanation && (
+                    <div className="mt-3 p-2.5 rounded-xl bg-amber-50/70 border border-amber-200 text-xs text-amber-900 font-medium">
+                      <span className="font-bold">ব্যাখ্যা:</span> {q.explanation}
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Certificates Management */}
+      {activeTab === 'certificates' && (
+        <div className="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-md space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+            <div>
+              <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                <Award className="w-5 h-5 text-[#ffd700]" />
+                অফিসিয়াল সনদপত্র ও প্রশংসাপত্র রেকর্ড
+              </h3>
+              <p className="text-xs text-gray-500 font-medium">
+                কুইজের সেরা ১০ মেধা সনদ এবং কোর্স সম্পন্নকারী শিক্ষার্থীদের সনদপত্র সরাসরি ইস্যু ও প্রিন্ট করুন।
+              </p>
+            </div>
+            <button
+              onClick={() => setIsIssueCertModalOpen(true)}
+              className="px-4 py-2.5 rounded-2xl bg-[#ffd700] hover:bg-[#e6c200] text-gray-950 font-black text-xs sm:text-sm shadow flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>নতুন সনদপত্র ইস্যু করুন</span>
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-gray-700">
+              <thead className="bg-gray-100 text-gray-600 uppercase font-bold text-[10px] tracking-wider rounded-xl">
+                <tr>
+                  <th className="py-3 px-4 rounded-l-xl">সনদপত্র নং</th>
+                  <th className="py-3 px-4">শিক্ষার্থীর নাম</th>
+                  <th className="py-3 px-4">জিমেইল / ইমেইল</th>
+                  <th className="py-3 px-4">ধরণ ও কোর্স</th>
+                  <th className="py-3 px-4">ইস্যু তারিখ</th>
+                  <th className="py-3 px-4 rounded-r-xl text-right">পদক্ষেপ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {certificatesList.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-gray-400 font-medium">
+                      কোনো সনদপত্র এখনও ইস্যু করা হয়নি।
+                    </td>
+                  </tr>
+                ) : (
+                  certificatesList.map((cert) => (
+                    <tr key={cert.id} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-[#2c5f2d]">
+                        {cert.certificateNumber}
+                      </td>
+                      <td className="py-3 px-4 font-bold text-gray-900">
+                        {cert.studentName}
+                        {cert.rollNo && (
+                          <span className="block text-[10px] text-gray-400">রোল: {cert.rollNo}</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600 font-medium">
+                        {cert.userEmail}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                            cert.type === 'merit_top10'
+                              ? 'bg-amber-100 text-amber-900'
+                              : 'bg-emerald-100 text-emerald-900'
+                          }`}
+                        >
+                          {cert.type === 'merit_top10' ? '🏆 মেধা সেরা ১০' : '🎓 কোর্স সমাপন'}
+                        </span>
+                        <span className="block text-[11px] text-gray-600 font-medium mt-0.5 truncate max-w-[180px]">
+                          {cert.courseName || cert.title}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-gray-500">{cert.issueDate}</td>
+                      <td className="py-3 px-4 text-right space-x-2">
+                        <button
+                          onClick={() => setSelectedCertForPreview(cert)}
+                          className="px-2.5 py-1.5 rounded-lg bg-[#2c5f2d] text-white font-bold text-[11px] hover:bg-[#224b23] inline-flex items-center gap-1 shadow-sm"
+                          title="সনদপত্র দেখুন ও প্রিন্ট করুন"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-[#ffd700]" />
+                          <span>প্রিন্ট / ভিউ</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteCert(cert.id, cert.studentName)}
+                          className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 text-xs font-bold"
+                          title="সনদপত্র মুছুন"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* Tab 2: Director Profile Editor */}
@@ -1318,6 +1899,375 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             ))}
           </div>
         </div>
+      )}
+
+      {/* Course Edit/Create Modal */}
+      {isCourseModalOpen && editingCourse && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl space-y-6 my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-[#2c5f2d]" />
+                {editingCourse.id ? 'কোর্স তথ্য সম্পাদনা' : 'নতুন কোর্স সংযোজন'}
+              </h3>
+              <button
+                onClick={() => setIsCourseModalOpen(false)}
+                className="p-1 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCourseForm} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">কোর্সের শিরোনাম *</label>
+                <input
+                  type="text"
+                  required
+                  value={editingCourse.title}
+                  onChange={(e) => setEditingCourse({ ...editingCourse, title: e.target.value })}
+                  placeholder="যেমন: এসএসসি স্পেশাল গণিত ও বিজ্ঞান ব্যাচ"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm focus:ring-2 focus:ring-[#2c5f2d]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">শ্রেণী / স্তর *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingCourse.level}
+                    onChange={(e) => setEditingCourse({ ...editingCourse, level: e.target.value })}
+                    placeholder="যেমন: ৮ম - ১০ম শ্রেণী"
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">কোর্সের মেয়াদ *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingCourse.duration}
+                    onChange={(e) => setEditingCourse({ ...editingCourse, duration: e.target.value })}
+                    placeholder="যেমন: ৬ মাস / ১ বছর"
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">কোর্স ফি *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingCourse.price}
+                    onChange={(e) => setEditingCourse({ ...editingCourse, price: e.target.value })}
+                    placeholder="যেমন: ৳ ৩,৫০০ / মাস"
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+                <div className="flex items-center pt-5">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-800">
+                    <input
+                      type="checkbox"
+                      checked={editingCourse.popular || false}
+                      onChange={(e) => setEditingCourse({ ...editingCourse, popular: e.target.checked })}
+                      className="w-4 h-4 rounded text-[#2c5f2d] focus:ring-[#2c5f2d]"
+                    />
+                    <span>জনপ্রিয় কোর্স ব্যাজ দেখান</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  বিষয়সমূহ (কমা দিয়ে লিখুন)
+                </label>
+                <input
+                  type="text"
+                  value={courseSubjectsText}
+                  onChange={(e) => setCourseSubjectsText(e.target.value)}
+                  placeholder="সাধারণ গণিত, উচ্চতর গণিত, পদার্থবিজ্ঞান"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  বিশেষ সুবিধাসমূহ (কমা দিয়ে লিখুন)
+                </label>
+                <input
+                  type="text"
+                  value={courseFeaturesText}
+                  onChange={(e) => setCourseFeaturesText(e.target.value)}
+                  placeholder="সাপ্তাহিক টেস্ট, স্মার্ট ডিজিটাল ক্লাসরুম, মডেল টেস্ট"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsCourseModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-50"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#2c5f2d] hover:bg-[#224b23] text-white text-xs font-bold shadow flex items-center gap-2"
+                >
+                  <Check className="w-4 h-4 text-[#ffd700]" />
+                  <span>কোর্স সংরক্ষণ করুন</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quiz Question Edit/Create Modal */}
+      {isQuestionModalOpen && editingQuestion && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl space-y-6 my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-[#2c5f2d]" />
+                কুইজ প্রশ্ন সম্পাদনা
+              </h3>
+              <button
+                onClick={() => setIsQuestionModalOpen(false)}
+                className="p-1 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuestionForm} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">বিষয় / ক্যাটাগরি *</label>
+                  <select
+                    value={editingQuestion.category}
+                    onChange={(e) => setEditingQuestion({ ...editingQuestion, category: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  >
+                    <option value="math">গণিত (Math)</option>
+                    <option value="science">বিজ্ঞান (Science)</option>
+                    <option value="english">ইংরেজি (English)</option>
+                    <option value="gk">সাধারণ জ্ঞান (General Knowledge)</option>
+                    <option value="bangla">বাংলা (Bangla)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">সঠিক বিকল্প অপশন *</label>
+                  <select
+                    value={editingQuestion.correctAnswer}
+                    onChange={(e) => setEditingQuestion({ ...editingQuestion, correctAnswer: Number(e.target.value) })}
+                    className="w-full px-4 py-2 rounded-xl border border-emerald-400 bg-emerald-50 text-emerald-950 font-bold text-sm"
+                  >
+                    <option value={0}>অপশন ১ (ক)</option>
+                    <option value={1}>অপশন ২ (খ)</option>
+                    <option value={2}>অপশন ৩ (গ)</option>
+                    <option value={3}>অপশন ৪ (ঘ)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">প্রশ্নের বিবরণ *</label>
+                <textarea
+                  rows={2}
+                  required
+                  value={editingQuestion.question}
+                  onChange={(e) => setEditingQuestion({ ...editingQuestion, question: e.target.value })}
+                  placeholder="প্রশ্নের পুরো লাইনটি এখানে লিখুন..."
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm focus:ring-2 focus:ring-[#2c5f2d]"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-gray-700">বিকল্প উত্তরসমূহ (৪টি অপশন) *</label>
+                {[0, 1, 2, 3].map((idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span
+                      className={`w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 ${
+                        editingQuestion.correctAnswer === idx
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      {['ক', 'খ', 'গ', 'ঘ'][idx]}
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      value={editingQuestion.options[idx] || ''}
+                      onChange={(e) => {
+                        const newOpts = [...editingQuestion.options];
+                        newOpts[idx] = e.target.value;
+                        setEditingQuestion({ ...editingQuestion, options: newOpts });
+                      }}
+                      placeholder={`বিকল্প ${['ক', 'খ', 'গ', 'ঘ'][idx]}`}
+                      className="flex-1 px-3 py-2 rounded-xl border border-gray-300 text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">সমাধান বা ব্যাখ্যা (ঐচ্ছিক)</label>
+                <input
+                  type="text"
+                  value={editingQuestion.explanation || ''}
+                  onChange={(e) => setEditingQuestion({ ...editingQuestion, explanation: e.target.value })}
+                  placeholder="শিক্ষার্থীরা কুইজ শেষ করার পর এই ব্যাখ্যা দেখতে পাবে"
+                  className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsQuestionModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-50"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#2c5f2d] hover:bg-[#224b23] text-white text-xs font-bold shadow flex items-center gap-2"
+                >
+                  <Check className="w-4 h-4 text-[#ffd700]" />
+                  <span>প্রশ্ন সংরক্ষণ করুন</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Issue Certificate Modal */}
+      {isIssueCertModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl space-y-6 my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                <Award className="w-5 h-5 text-[#ffd700]" />
+                শিক্ষার্থীকে সনদপত্র ইস্যু করুন
+              </h3>
+              <button
+                onClick={() => setIsIssueCertModalOpen(false)}
+                className="p-1 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleIssueCertificateForm} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">সনদপত্রের ধরণ *</label>
+                <select
+                  value={newCertForm.type}
+                  onChange={(e) => setNewCertForm({ ...newCertForm, type: e.target.value as any })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm font-semibold"
+                >
+                  <option value="course_completion">কোর্স সমাপন প্রশংসাপত্র (Course Completion)</option>
+                  <option value="merit_top10">মেধা ও শ্রেষ্ঠত্ব সনদপত্র (Merit / Top 10)</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">শিক্ষার্থীর পুরো নাম *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newCertForm.studentName}
+                    onChange={(e) => setNewCertForm({ ...newCertForm, studentName: e.target.value })}
+                    placeholder="যেমন: মো: তানভীর হোসেন"
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">শিক্ষার্থীর জিমেইল *</label>
+                  <input
+                    type="email"
+                    required
+                    value={newCertForm.userEmail}
+                    onChange={(e) => setNewCertForm({ ...newCertForm, userEmail: e.target.value })}
+                    placeholder="student@gmail.com"
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                  <span className="text-[10px] text-gray-400">এই জিমেইল আইডির প্রোফাইলে সনদ যুক্ত হবে</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">কোর্সের নাম *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newCertForm.courseName}
+                    onChange={(e) => setNewCertForm({ ...newCertForm, courseName: e.target.value })}
+                    placeholder="যেমন: এসএসসি রিভিশন ব্যাচ"
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">রোল / রেজিস্ট্রেশন নম্বর</label>
+                  <input
+                    type="text"
+                    value={newCertForm.rollNo}
+                    onChange={(e) => setNewCertForm({ ...newCertForm, rollNo: e.target.value })}
+                    placeholder="যেমন: ETH-2026-054"
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">সনদের বিবরণী / বাণী *</label>
+                <textarea
+                  rows={2}
+                  required
+                  value={newCertForm.description}
+                  onChange={(e) => setNewCertForm({ ...newCertForm, description: e.target.value })}
+                  placeholder="সনদপত্রের মূল বিবরণী..."
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsIssueCertModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold hover:bg-gray-50"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#2c5f2d] hover:bg-[#224b23] text-white text-xs font-bold shadow flex items-center gap-2"
+                >
+                  <Award className="w-4 h-4 text-[#ffd700]" />
+                  <span>সনদপত্র ইস্যু ও সংরক্ষণ করুন</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Certificate Print & Preview Modal */}
+      {selectedCertForPreview && (
+        <CertificateView
+          certificate={selectedCertForPreview}
+          onClose={() => setSelectedCertForPreview(null)}
+        />
       )}
     </div>
   );
