@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary-green: #2c5f2d;
+  --primary-gold: #ffd700;
+}
+
+body {
+  font-family: 'Hind Siliguri', sans-serif;
+  background-color: #f9fafb;
+  color: #1a202c;
+  overflow-x: hidden;
+}
+
+/* Custom rounded shapes according to Ether Aesthetic */
+.ether-card {
+  border-radius: 2rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ether-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 25px 30px -5px rgba(44, 95, 45, 0.15);
+}
