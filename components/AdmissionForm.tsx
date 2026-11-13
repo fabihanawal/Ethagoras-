@@ -1,15 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { UserCheck, CheckCircle2, ArrowRight, ArrowLeft, Shield, FileText, Sparkles, School, Phone, Mail, MapPin } from 'lucide-react';
-import { BookingSubmission } from '../lib/types';
+import { UserCheck, CheckCircle2, ArrowRight, ArrowLeft, Shield, FileText, Sparkles, School, Video } from 'lucide-react';
+import { BookingSubmission, OnlineBatch, Course } from '../lib/types';
 import { addBooking } from '../lib/firestoreService';
 import { useAuth } from '../lib/AuthContext';
 
 interface AdmissionFormProps {
   onSuccessBooking: (booking: BookingSubmission) => void;
   navigate: (route: string) => void;
+  defaultLearningMode?: 'Online' | 'Offline';
+  defaultCourse?: string;
+  onlineBatches?: OnlineBatch[];
+  courses?: Course[];
 }
 
-export const AdmissionForm: React.FC<AdmissionFormProps> = ({ onSuccessBooking, navigate }) => {
+export const AdmissionForm: React.FC<AdmissionFormProps> = ({
+  onSuccessBooking,
+  navigate,
+  defaultLearningMode = 'Online',
+  defaultCourse = '',
+  onlineBatches = [],
+  courses = [],
+}) => {
   const { user } = useAuth();
   const [step, setStep] = useState<number>(1);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -22,11 +33,24 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ onSuccessBooking, 
     email: '',
     schoolName: '',
     grade: 'দশম শ্রেণী (Class 10 - SSC 2026)',
-    courseSelected: 'বিজ্ঞান বিশেষ ব্যাচ (Special Science Batch)',
-    shiftPreference: 'Morning' as 'Morning' | 'Day' | 'Evening',
-    address: 'নওগাঁ সদর, নওগাঁ',
+    learningMode: defaultLearningMode as 'Online' | 'Offline',
+    courseSelected: defaultCourse || 'এসএসসি বিজ্ঞান অনলাইন লাইভ ব্যাচ (Class 9-10)',
+    shiftPreference: 'Evening' as 'Morning' | 'Day' | 'Evening',
+    address: 'বদলগাছী সদর, নওগাঁ',
     notes: '',
   });
+
+  useEffect(() => {
+    if (defaultLearningMode) {
+      setFormData((prev) => ({ ...prev, learningMode: defaultLearningMode }));
+    }
+  }, [defaultLearningMode]);
+
+  useEffect(() => {
+    if (defaultCourse) {
+      setFormData((prev) => ({ ...prev, courseSelected: defaultCourse }));
+    }
+  }, [defaultCourse]);
 
   // Pre-fill user info if logged in
   useEffect(() => {
@@ -73,6 +97,7 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ onSuccessBooking, 
       setSubmitting(true);
       const newBooking: BookingSubmission = {
         id: `BK-${Date.now().toString().slice(-6)}`,
+        ...(user?.uid ? { userId: user.uid } : {}),
         studentName: formData.studentName,
         guardianName: formData.guardianName,
         phone: formData.phone,
@@ -80,6 +105,7 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ onSuccessBooking, 
         schoolName: formData.schoolName,
         grade: formData.grade,
         courseSelected: formData.courseSelected,
+        learningMode: formData.learningMode,
         shiftPreference: formData.shiftPreference,
         address: formData.address,
         notes: formData.notes,
@@ -177,6 +203,12 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ onSuccessBooking, 
                 <span className="font-bold text-[#2c5f2d]">{submittedBooking.courseSelected}</span>
               </div>
               <div className="flex justify-between py-1 border-b border-gray-200">
+                <span className="text-gray-500 font-medium">পড়াশোনার মাধ্যম:</span>
+                <span className="font-bold text-gray-900">
+                  {submittedBooking.learningMode === 'Online' ? 'অনলাইন লাইভ ব্যাচ' : 'অফলাইন ক্যাম্পাস ব্যাচ'}
+                </span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-gray-200">
                 <span className="text-gray-500 font-medium">শিফট:</span>
                 <span className="font-bold text-gray-900">{submittedBooking.shiftPreference} Shift</span>
               </div>
@@ -188,7 +220,30 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ onSuccessBooking, 
               </div>
             </div>
 
+            {submittedBooking.learningMode === 'Online' && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 max-w-lg mx-auto mb-6 text-xs sm:text-sm text-emerald-900 font-medium">
+                অনলাইন লাইভ ব্যাচের অনুমোদন হয়ে গেলে আপনার জিমেইল আইডি দিয়ে লগইন করে সরাসরি{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate('#/online-batch')}
+                  className="font-black underline text-[#2c5f2d]"
+                >
+                  অনলাইন ব্যাচ পোর্টাল
+                </button>{' '}
+                থেকে লাইভ ক্লাসে যুক্ত হতে পারবেন।
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-4 justify-center">
+              {submittedBooking.learningMode === 'Online' && (
+                <button
+                  onClick={() => navigate('#/online-batch')}
+                  className="px-6 py-3 rounded-2xl bg-[#ffd700] hover:bg-[#e6c200] font-black text-sm text-gray-950 shadow-md transition-colors flex items-center gap-2"
+                >
+                  <Video className="w-4 h-4" />
+                  <span>অনলাইন ব্যাচ পোর্টাল দেখুন</span>
+                </button>
+              )}
               <button
                 onClick={() => {
                   setSubmittedBooking(null);
@@ -329,25 +384,95 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ onSuccessBooking, 
               </div>
             )}
 
-            {/* Step 3: Course Selection */}
+            {/* Step 3: Batch Mode & Course Selection */}
             {step === 3 && (
               <div className="space-y-5 animate-in fade-in duration-300">
                 <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-100">
                   <FileText className="w-5 h-5 text-[#2c5f2d]" />
-                  ধাপ ৩: কোর্স ও শিফট নির্বাচন
+                  ধাপ ৩: পড়াশোনার মাধ্যম, কোর্স ও শিফট নির্বাচন
                 </h3>
+
+                {/* Online vs Offline Batch Mode */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                    কোন মাধ্যমে পড়তে চান? *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const firstOnline = onlineBatches[0]?.title || 'এসএসসি বিজ্ঞান অনলাইন লাইভ ব্যাচ (Class 9-10)';
+                        setFormData({
+                          ...formData,
+                          learningMode: 'Online',
+                          courseSelected: firstOnline,
+                        });
+                      }}
+                      className={`p-4 rounded-2xl text-left border transition-all ${
+                        formData.learningMode === 'Online'
+                          ? 'bg-[#2c5f2d] text-white border-[#2c5f2d] shadow-md'
+                          : 'bg-gray-50 text-gray-800 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      <div className="font-black text-sm flex items-center gap-2">
+                        <Video className={`w-4 h-4 ${formData.learningMode === 'Online' ? 'text-[#ffd700]' : 'text-[#2c5f2d]'}`} />
+                        <span>অনলাইন লাইভ ব্যাচ (Online Batch)</span>
+                      </div>
+                      <p className={`text-xs mt-1 ${formData.learningMode === 'Online' ? 'text-gray-200' : 'text-gray-500'}`}>
+                        ঘরে বসেই Google Meet / Zoom-এ লাইভ ক্লাস ও PDF নোটস
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const firstOffline = courses[0]?.title || 'বিজ্ঞান বিশেষ ব্যাচ (Special Science Batch)';
+                        setFormData({
+                          ...formData,
+                          learningMode: 'Offline',
+                          courseSelected: firstOffline,
+                        });
+                      }}
+                      className={`p-4 rounded-2xl text-left border transition-all ${
+                        formData.learningMode === 'Offline'
+                          ? 'bg-[#2c5f2d] text-white border-[#2c5f2d] shadow-md'
+                          : 'bg-gray-50 text-gray-800 border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      <div className="font-black text-sm flex items-center gap-2">
+                        <School className={`w-4 h-4 ${formData.learningMode === 'Offline' ? 'text-[#ffd700]' : 'text-[#2c5f2d]'}`} />
+                        <span>অফলাইন ক্যাম্পাস ব্যাচ (Offline Campus)</span>
+                      </div>
+                      <p className={`text-xs mt-1 ${formData.learningMode === 'Offline' ? 'text-gray-200' : 'text-gray-500'}`}>
+                        বদলগাছী সদর ক্যাম্পাসে সরাসরি স্মার্ট ক্লাসরুমে পাঠদান
+                      </p>
+                    </button>
+                  </div>
+                </div>
 
                 <div>
                   <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                    পছন্দের কোর্স নির্বাচন করুন
+                    {formData.learningMode === 'Online' ? 'অনলাইন ব্যাচ নির্বাচন করুন' : 'পছন্দের কোর্স নির্বাচন করুন'}
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {[
-                      'বিজ্ঞান বিশেষ ব্যাচ (Special Science Batch)',
-                      'উচ্চতর গণিত ও পদার্থবিজ্ঞান স্পেশাল',
-                      'অল-ইন-ওয়ান ফাউন্ডেশন কোর্স (All-in-One)',
-                      'মেধাবী স্কলারশিপ ব্যাচ (Olympiad)',
-                    ].map((c) => (
+                    {(formData.learningMode === 'Online'
+                      ? (onlineBatches.length > 0
+                          ? onlineBatches.map((b) => b.title)
+                          : [
+                              'এসএসসি বিজ্ঞান অনলাইন লাইভ ব্যাচ (Class 9-10)',
+                              'এইচএসসি বিজ্ঞান প্রি-এডমিশন অনলাইন ব্যাচ (Class 11-12)',
+                              'জুনিয়র ম্যাথ ও সায়েন্স ফাউন্ডেশন অনলাইন ব্যাচ (Class 6-8)',
+                              'ইংরেজি গ্রামার ও স্পোকেন অনলাইন স্পেশাল ব্যাচ',
+                            ])
+                      : (courses.length > 0
+                          ? courses.map((c) => c.title)
+                          : [
+                              'বিজ্ঞান বিশেষ ব্যাচ (Special Science Batch)',
+                              'উচ্চতর গণিত ও পদার্থবিজ্ঞান স্পেশাল',
+                              'অল-ইন-ওয়ান ফাউন্ডেশন কোর্স (All-in-One)',
+                              'মেধাবী স্কলারশিপ ব্যাচ (Olympiad)',
+                            ])
+                    ).map((c) => (
                       <button
                         key={c}
                         type="button"
@@ -380,7 +505,7 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ onSuccessBooking, 
                             : 'bg-white text-gray-600 border-gray-200'
                         }`}
                       >
-                        {shift === 'Morning' ? 'সকাল (৭:০০ - ৯:০০)' : shift === 'Day' ? 'দুপুর (২:০০ - ৪:০০)' : 'সন্ধ্যা (৫:০০ - ৭:০০)'}
+                        {shift === 'Morning' ? 'সকাল (৭:০০ - ৯:০০)' : shift === 'Day' ? 'দুপুর (২:০০ - ৪:০০)' : 'সন্ধ্যা (৫:০০ - ৯:০০)'}
                       </button>
                     ))}
                   </div>
@@ -425,6 +550,12 @@ export const AdmissionForm: React.FC<AdmissionFormProps> = ({ onSuccessBooking, 
                   <div className="flex justify-between">
                     <span className="text-gray-500 font-medium">প্রতিষ্ঠান:</span>
                     <span className="font-bold text-gray-900">{formData.schoolName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500 font-medium">ব্যাচের ধরণ:</span>
+                    <span className="font-bold text-[#2c5f2d]">
+                      {formData.learningMode === 'Online' ? 'অনলাইন লাইভ ব্যাচ' : 'অফলাইন ক্যাম্পাস ব্যাচ'}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500 font-medium">কোর্স:</span>

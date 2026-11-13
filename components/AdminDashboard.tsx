@@ -31,6 +31,9 @@ import {
   Printer,
   Sparkles,
   Search,
+  Video,
+  Landmark,
+  CreditCard,
 } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import {
@@ -43,7 +46,16 @@ import {
   Course,
   QuizQuestion,
   Certificate,
+  PaymentSettings,
+  OnlineBatch,
+  StudyNote,
+  NoteOrder,
 } from '../lib/types';
+import {
+  INITIAL_PAYMENT_SETTINGS,
+  INITIAL_ONLINE_BATCHES,
+  INITIAL_STUDY_NOTES,
+} from '../lib/dataStore';
 import {
   updateContactSettings,
   updateSocialSettings,
@@ -64,6 +76,16 @@ import {
   subscribeAllCertificates,
   issueCertificate,
   deleteCertificate,
+  updatePaymentSettings,
+  subscribeOnlineBatches,
+  saveOnlineBatch,
+  deleteOnlineBatch,
+  subscribeNotes,
+  saveNote,
+  deleteNote,
+  subscribeNoteOrders,
+  updateNoteOrderStatus,
+  deleteNoteOrder,
 } from '../lib/firestoreService';
 import { CertificateView } from './CertificateView';
 
@@ -72,9 +94,13 @@ interface AdminDashboardProps {
   bookings: BookingSubmission[];
   contactSettings: ContactSettings;
   socialSettings: SocialSettings;
+  paymentSettings?: PaymentSettings;
   director: DirectorProfile;
   teachers: TeacherProfile[];
   courses?: Course[];
+  onlineBatches?: OnlineBatch[];
+  notes?: StudyNote[];
+  noteOrders?: NoteOrder[];
   navigate: (route: string) => void;
 }
 
@@ -83,16 +109,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   bookings,
   contactSettings,
   socialSettings,
+  paymentSettings,
   director,
   teachers,
   courses,
+  onlineBatches,
+  notes,
+  noteOrders,
   navigate,
 }) => {
   const { user, isAdmin, adminEmails, signInWithGoogle, signOut } = useAuth();
 
   // Active Tab
   const [activeTab, setActiveTab] = useState<
-    'contact_social' | 'courses' | 'questions' | 'certificates' | 'director' | 'teachers' | 'slides' | 'bookings' | 'admin_emails' | 'quickshare'
+    | 'contact_social'
+    | 'online_batches'
+    | 'notes_library'
+    | 'payment_orders'
+    | 'courses'
+    | 'questions'
+    | 'certificates'
+    | 'director'
+    | 'teachers'
+    | 'slides'
+    | 'bookings'
+    | 'admin_emails'
+    | 'quickshare'
   >('contact_social');
 
   // Copied link toast
@@ -104,7 +146,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Forms local states
   const [contactForm, setContactForm] = useState<ContactSettings>(contactSettings);
   const [socialForm, setSocialForm] = useState<SocialSettings>(socialSettings);
+  const [paymentForm, setPaymentForm] = useState<PaymentSettings>(
+    paymentSettings || INITIAL_PAYMENT_SETTINGS
+  );
   const [directorForm, setDirectorForm] = useState<DirectorProfile>(director);
+
+  useEffect(() => {
+    if (paymentSettings) setPaymentForm(paymentSettings);
+  }, [paymentSettings]);
 
   // Courses state & modal
   const [coursesList, setCoursesList] = useState<Course[]>(courses || []);
@@ -112,6 +161,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
   const [courseSubjectsText, setCourseSubjectsText] = useState('');
   const [courseFeaturesText, setCourseFeaturesText] = useState('');
+
+  // Online Batches state & modal
+  const [onlineBatchesList, setOnlineBatchesList] = useState<OnlineBatch[]>(
+    onlineBatches || INITIAL_ONLINE_BATCHES
+  );
+  const [editingBatch, setEditingBatch] = useState<OnlineBatch | null>(null);
+  const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+
+  // Study Notes state & modal
+  const [notesList, setNotesList] = useState<StudyNote[]>(notes || INITIAL_STUDY_NOTES);
+  const [editingNote, setEditingNote] = useState<StudyNote | null>(null);
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [notePaidHighlightsText, setNotePaidHighlightsText] = useState('');
+
+  // Paid Note Orders state
+  const [noteOrdersList, setNoteOrdersList] = useState<NoteOrder[]>(noteOrders || []);
 
   // Quiz Questions state & modal
   const [questionsList, setQuestionsList] = useState<QuizQuestion[]>([]);
@@ -133,15 +198,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     issuedBy: 'পরিচালক, ইথাগোরাস প্রাইভেট (নওগাঁ)',
   });
 
-  // Subscribe to real-time courses, questions and all certificates
+  // Subscribe to real-time collections
   useEffect(() => {
     const unsubCourses = subscribeCourses((data) => setCoursesList(data));
     const unsubQuestions = subscribeQuestions((data) => setQuestionsList(data));
     const unsubCertificates = subscribeAllCertificates((data) => setCertificatesList(data));
+    const unsubOnlineBatches = subscribeOnlineBatches((data) => setOnlineBatchesList(data));
+    const unsubNotes = subscribeNotes((data) => setNotesList(data));
+    const unsubNoteOrders = subscribeNoteOrders((data) => setNoteOrdersList(data));
     return () => {
       unsubCourses();
       unsubQuestions();
       unsubCertificates();
+      unsubOnlineBatches();
+      unsubNotes();
+      unsubNoteOrders();
     };
   }, []);
 
@@ -279,6 +350,124 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         showNotification('কোর্সটি সফলভাবে মুছে ফেলা হয়েছে।');
       } catch (err) {
         alert('কোর্স মুছতে সমস্যা হয়েছে।');
+      }
+    }
+  };
+
+  // Payment Settings Save Handler
+  const handleSavePaymentSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await updatePaymentSettings(paymentForm);
+      showNotification('বিকাশ, নগদ ও ব্যাংক একাউন্ট তথ্য সফলভাবে সংরক্ষিত হয়েছে!');
+    } catch (err) {
+      alert('পেমেন্ট তথ্য সংরক্ষণে সমস্যা হয়েছে।');
+    }
+  };
+
+  // Online Batch Handlers
+  const handleOpenAddBatch = () => {
+    setEditingBatch({
+      id: `ob-${Date.now()}`,
+      title: '',
+      classLevel: '৯ম - ১০ম শ্রেণী (SSC)',
+      subject: '',
+      schedule: 'শনি, সোম, বুধ · রাত ৮:০০ টা',
+      platform: 'Google Meet / Zoom Live',
+      meetingLink: 'https://meet.google.com/',
+      instructor: '',
+      monthlyFee: '৳ ১,৫০০ / মাস',
+      description: '',
+      nextTopic: '',
+      active: true,
+      displayOrder: onlineBatchesList.length + 1,
+    });
+    setIsBatchModalOpen(true);
+  };
+
+  const handleSaveBatchForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBatch) return;
+    try {
+      await saveOnlineBatch(editingBatch);
+      setIsBatchModalOpen(false);
+      setEditingBatch(null);
+      showNotification('অনলাইন ব্যাচের তথ্য সফলভাবে সংরক্ষিত হয়েছে!');
+    } catch (err) {
+      alert('অনলাইন ব্যাচ সংরক্ষণে সমস্যা হয়েছে।');
+    }
+  };
+
+  const handleDeleteBatchItem = async (id: string, title: string) => {
+    if (confirm(`আপনি কি "${title}" অনলাইন ব্যাচটি মুছে ফেলতে চান?`)) {
+      try {
+        await deleteOnlineBatch(id);
+        showNotification('অনলাইন ব্যাচটি মুছে ফেলা হয়েছে।');
+      } catch (err) {
+        alert('অনলাইন ব্যাচ মুছতে সমস্যা হয়েছে।');
+      }
+    }
+  };
+
+  // Study Notes Handlers
+  const handleOpenAddNote = () => {
+    setEditingNote({
+      id: `note-${Date.now()}`,
+      title: '',
+      classLevel: '৯ম - ১০ম শ্রেণী (SSC)',
+      subject: 'গণিত',
+      chapter: '',
+      freeHookTitle: 'ফ্রী হুক নোট: গুরুত্বপূর্ণ সূত্র ও প্রিভিউ',
+      freeHookContent: '',
+      paidHighlights: [
+        'সম্পূর্ণ অধ্যায়ের কালারফুল PDF লেকচার নোটস',
+        'বিগত বোর্ড পরীক্ষার সৃজনশীল ও MCQ সমাধান',
+      ],
+      totalPages: '৪৫ পৃষ্ঠা PDF',
+      price: '৳ ১৫০',
+      authorTeacher: director.name || 'ইথাগোরাস টিম',
+      active: true,
+      displayOrder: notesList.length + 1,
+    });
+    setNotePaidHighlightsText(
+      'সম্পূর্ণ অধ্যায়ের কালারফুল PDF লেকচার নোটস\nবিগত বোর্ড পরীক্ষার সৃজনশীল ও MCQ সমাধান'
+    );
+    setIsNoteModalOpen(true);
+  };
+
+  const handleOpenEditNote = (n: StudyNote) => {
+    setEditingNote({ ...n });
+    setNotePaidHighlightsText((n.paidHighlights || []).join('\n'));
+    setIsNoteModalOpen(true);
+  };
+
+  const handleSaveNoteForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingNote) return;
+    try {
+      const highlights = notePaidHighlightsText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+      await saveNote({
+        ...editingNote,
+        paidHighlights: highlights.length > 0 ? highlights : ['সম্পূর্ণ অধ্যায়ভিত্তিক PDF নোটস'],
+      });
+      setIsNoteModalOpen(false);
+      setEditingNote(null);
+      showNotification('ফ্রী হুক ও পেইড নোটস সফলভাবে সংরক্ষিত হয়েছে!');
+    } catch (err) {
+      alert('নোটস সংরক্ষণে সমস্যা হয়েছে।');
+    }
+  };
+
+  const handleDeleteNoteItem = async (id: string, title: string) => {
+    if (confirm(`আপনি কি "${title}" নোটসটি মুছে ফেলতে চান?`)) {
+      try {
+        await deleteNote(id);
+        showNotification('নোটসটি মুছে ফেলা হয়েছে।');
+      } catch (err) {
+        alert('নোটস মুছতে সমস্যা হয়েছে।');
       }
     }
   };
@@ -605,6 +794,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </button>
 
         <button
+          onClick={() => setActiveTab('online_batches')}
+          className={`px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
+            activeTab === 'online_batches' ? 'bg-[#2c5f2d] text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <Video className="w-4 h-4" />
+          অনলাইন ব্যাচ ({onlineBatchesList.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('notes_library')}
+          className={`px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
+            activeTab === 'notes_library' ? 'bg-[#2c5f2d] text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          ফ্রী ও পেইড নোটস ({notesList.length})
+        </button>
+
+        <button
+          onClick={() => setActiveTab('payment_orders')}
+          className={`px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
+            activeTab === 'payment_orders' ? 'bg-[#2c5f2d] text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          পেমেন্ট ও নোট অর্ডার ({noteOrdersList.length})
+        </button>
+
+        <button
           onClick={() => setActiveTab('courses')}
           className={`px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
             activeTab === 'courses' ? 'bg-[#2c5f2d] text-white shadow-md' : 'bg-white text-gray-700 hover:bg-gray-100'
@@ -823,6 +1042,393 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           </div>
         </form>
+      )}
+
+      {/* Tab: Online Batches Management */}
+      {activeTab === 'online_batches' && (
+        <div className="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-md space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+            <div>
+              <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                <Video className="w-5 h-5 text-[#2c5f2d]" />
+                অনলাইন লাইভ ব্যাচ ব্যবস্থাপনা
+              </h3>
+              <p className="text-xs text-gray-500 font-medium">
+                অনলাইনে ভর্তি হওয়া শিক্ষার্থীদের জন্য লাইভ ক্লাস রুটিন, মিটিং লিংক (Google Meet/Zoom) ও ব্যাচের তথ্য সম্পাদনা করুন।
+              </p>
+            </div>
+            <button
+              onClick={handleOpenAddBatch}
+              className="px-4 py-2.5 rounded-2xl bg-[#2c5f2d] hover:bg-[#224b23] text-white font-bold text-xs sm:text-sm shadow flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4 text-[#ffd700]" />
+              <span>নতুন অনলাইন ব্যাচ যোগ করুন</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {onlineBatchesList.map((batch) => (
+              <div
+                key={batch.id}
+                className="bg-gray-50 rounded-3xl p-6 border border-gray-200 space-y-3 flex flex-col justify-between"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-gray-600">
+                    <span>{batch.classLevel} · {batch.subject}</span>
+                    <span className="text-[#2c5f2d] font-black">{batch.monthlyFee}</span>
+                  </div>
+                  <h4 className="text-lg font-black text-gray-900">{batch.title}</h4>
+                  <p className="text-xs text-gray-600">{batch.description}</p>
+                  <div className="text-xs text-gray-700 space-y-1 pt-2 border-t border-gray-200">
+                    <p><strong>সময়:</strong> {batch.schedule}</p>
+                    <p><strong>মাধ্যম:</strong> {batch.platform}</p>
+                    <p><strong>শিক্ষক:</strong> {batch.instructor}</p>
+                    <p className="truncate"><strong>ক্লাস লিংক:</strong> {batch.meetingLink}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                  <span className={`text-xs font-bold ${batch.active !== false ? 'text-emerald-700' : 'text-gray-400'}`}>
+                    {batch.active !== false ? '● সক্রিয়' : '○ নিষ্ক্রিয়'}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingBatch({ ...batch });
+                        setIsBatchModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-white hover:bg-gray-100 text-gray-800 border border-gray-300 text-xs font-bold flex items-center gap-1"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-[#2c5f2d]" />
+                      <span>এডিট</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteBatchItem(batch.id, batch.title)}
+                      className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>মুছুন</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Free Hook & Paid Notes Management */}
+      {activeTab === 'notes_library' && (
+        <div className="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-md space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
+            <div>
+              <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#2c5f2d]" />
+                ফ্রী হুক নোটস ও পেইড ভার্সন ব্যবস্থাপনা
+              </h3>
+              <p className="text-xs text-gray-500 font-medium">
+                বিভিন্ন ক্লাস ও বিষয়ের ফ্রী হুক নোটস এবং সম্পূর্ণ পেইড নোটসের মূল্য ও বিবরণ সংযোজন বা সম্পাদনা করুন।
+              </p>
+            </div>
+            <button
+              onClick={handleOpenAddNote}
+              className="px-4 py-2.5 rounded-2xl bg-[#2c5f2d] hover:bg-[#224b23] text-white font-bold text-xs sm:text-sm shadow flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4 text-[#ffd700]" />
+              <span>নতুন নোটস যোগ করুন</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {notesList.map((note) => (
+              <div
+                key={note.id}
+                className="bg-gray-50 rounded-3xl p-6 border border-gray-200 space-y-3 flex flex-col justify-between"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-gray-600">
+                    <span>{note.classLevel} · {note.subject}</span>
+                    <span className="text-[#2c5f2d] font-black">{note.price} ({note.totalPages})</span>
+                  </div>
+                  <h4 className="text-lg font-black text-gray-900">{note.title}</h4>
+                  <p className="text-xs text-gray-500">{note.chapter} · {note.authorTeacher}</p>
+                  <div className="bg-white p-3 rounded-xl border border-gray-200 text-xs text-gray-700 line-clamp-3 whitespace-pre-line">
+                    <strong className="text-[#2c5f2d] block mb-1">{note.freeHookTitle}</strong>
+                    {note.freeHookContent}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-gray-200">
+                  <span className={`text-xs font-bold ${note.active !== false ? 'text-emerald-700' : 'text-gray-400'}`}>
+                    {note.active !== false ? '● প্রকাশিত' : '○ খসড়া'}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleOpenEditNote(note)}
+                      className="px-3 py-1.5 rounded-xl bg-white hover:bg-gray-100 text-gray-800 border border-gray-300 text-xs font-bold flex items-center gap-1"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-[#2c5f2d]" />
+                      <span>এডিট</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteNoteItem(note.id, note.title)}
+                      className="px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>মুছুন</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Payment Numbers (bKash, Nagad, Bank) & Note Orders */}
+      {activeTab === 'payment_orders' && (
+        <div className="space-y-8">
+          {/* Payment Account Numbers Config */}
+          <form onSubmit={handleSavePaymentSettings} className="bg-white rounded-3xl p-6 sm:p-10 border border-gray-200 shadow-md space-y-6">
+            <div>
+              <h3 className="text-xl font-black text-gray-900 mb-1 flex items-center gap-2">
+                <Landmark className="w-5 h-5 text-[#2c5f2d]" />
+                বিকাশ, নগদ ও ব্যাংক একাউন্ট নম্বর সেটিংস
+              </h3>
+              <p className="text-xs text-gray-500 font-medium">
+                শিক্ষার্থীরা পেইড নোটস নেওয়ার জন্য ক্লিক করলে নিচের এই নম্বরগুলো প্রদর্শিত হবে।
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">বিকাশ নম্বর (bKash) *</label>
+                <input
+                  type="text"
+                  required
+                  value={paymentForm.bkashNumber}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, bkashNumber: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">বিকাশ একাউন্টের ধরণ</label>
+                <input
+                  type="text"
+                  value={paymentForm.bkashAccountType}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, bkashAccountType: e.target.value })}
+                  placeholder="পার্সোনাল (Send Money) / মার্চেন্ট"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">নগদ নম্বর (Nagad) *</label>
+                <input
+                  type="text"
+                  required
+                  value={paymentForm.nagadNumber}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, nagadNumber: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">নগদ একাউন্টের ধরণ</label>
+                <input
+                  type="text"
+                  value={paymentForm.nagadAccountType}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, nagadAccountType: e.target.value })}
+                  placeholder="পার্সোনাল (Send Money)"
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">ব্যাংকের নাম (Bank Name) *</label>
+                <input
+                  type="text"
+                  required
+                  value={paymentForm.bankName}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, bankName: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">শাখা (Branch)</label>
+                <input
+                  type="text"
+                  value={paymentForm.bankBranch}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, bankBranch: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">একাউন্ট হোল্ডারের নাম *</label>
+                <input
+                  type="text"
+                  required
+                  value={paymentForm.bankAccountName}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, bankAccountName: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">ব্যাংক একাউন্ট নম্বর *</label>
+                <input
+                  type="text"
+                  required
+                  value={paymentForm.bankAccountNumber}
+                  onChange={(e) => setPaymentForm({ ...paymentForm, bankAccountNumber: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm font-mono"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1">পেমেন্ট ও ডেলিভারি নির্দেশনা</label>
+              <textarea
+                rows={2}
+                value={paymentForm.paymentInstructions || ''}
+                onChange={(e) => setPaymentForm({ ...paymentForm, paymentInstructions: e.target.value })}
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                className="px-6 py-2.5 rounded-2xl bg-[#2c5f2d] hover:bg-[#224b23] text-white font-bold text-sm shadow flex items-center gap-2"
+              >
+                <Check className="w-4 h-4 text-[#ffd700]" />
+                <span>পেমেন্ট একাউন্ট তথ্য সংরক্ষণ করুন</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Note Purchase Orders Table */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-200 shadow-md space-y-4">
+            <div>
+              <h3 className="text-xl font-black text-gray-900">পেইড নোটস অর্ডার ও ডেলিভারি তালিকা</h3>
+              <p className="text-xs text-gray-500 font-medium">
+                যারা বিকাশ, নগদ বা ব্যাংকে পে করে ফরম সাবমিট করেছে তাদের হোয়াটসঅ্যাপ বা ইমেইলে PDF নোটস পাঠিয়ে ডেলিভারড মার্ক করুন।
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-gray-700">
+                <thead className="bg-gray-50 text-gray-600 uppercase font-bold border-b border-gray-200">
+                  <tr>
+                    <th className="py-3 px-4">অর্ডার ও তারিখ</th>
+                    <th className="py-3 px-4">ক্রেতার তথ্য</th>
+                    <th className="py-3 px-4">নোটস ও মূল্য</th>
+                    <th className="py-3 px-4">পেমেন্ট (TrxID)</th>
+                    <th className="py-3 px-4">ডেলিভারি মাধ্যম</th>
+                    <th className="py-3 px-4">স্থিতি</th>
+                    <th className="py-3 px-4 text-right">পদক্ষেপ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {noteOrdersList.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-10 text-center text-gray-400 font-medium">
+                        এখনও কোনো পেইড নোটস অর্ডার আসেনি।
+                      </td>
+                    </tr>
+                  ) : (
+                    noteOrdersList.map((order) => {
+                      const customerWa = order.customerPhone.replace(/[^0-9]/g, '');
+                      const waUrl = `https://wa.me/${customerWa.startsWith('88') ? customerWa : `88${customerWa}`}?text=${encodeURIComponent(
+                        `আসসালামু আলাইকুম ${order.customerName}, আপনার "${order.noteTitle}" নোটসের পেমেন্ট (${order.transactionId}) নিশ্চিত হয়েছে। নিচে সম্পূর্ণ PDF নোটস সংযুক্ত করা হলো।`
+                      )}`;
+                      return (
+                        <tr key={order.id} className="hover:bg-gray-50/70">
+                          <td className="py-3 px-4">
+                            <span className="font-mono font-bold text-[#2c5f2d]">{order.id}</span>
+                            <span className="block text-[10px] text-gray-400">{order.submittedAt}</span>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-gray-900">{order.customerName}</div>
+                            <div className="text-[11px] text-emerald-800 font-semibold">{order.customerPhone}</div>
+                            {order.customerEmail && <div className="text-[11px] text-gray-500">{order.customerEmail}</div>}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-gray-900 max-w-[180px] truncate">{order.noteTitle}</div>
+                            <div className="text-[11px] text-gray-500">{order.noteClass} · {order.price}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-bold text-gray-900">{order.paymentMethod}</span>
+                            <span className="block font-mono text-[11px] text-[#2c5f2d]">{order.transactionId}</span>
+                          </td>
+                          <td className="py-3 px-4 font-semibold">{order.deliveryPreference}</td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-[11px] font-bold ${
+                                order.status === 'Delivered'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#25D366] text-white font-bold text-[11px]"
+                              title="গ্রাহকের হোয়াটসঅ্যাপে পাঠান"
+                            >
+                              <MessageSquare className="w-3 h-3" />
+                              <span>WhatsApp</span>
+                            </a>
+                            {order.customerEmail && (
+                              <a
+                                href={`mailto:${order.customerEmail}?subject=${encodeURIComponent(
+                                  `Ethagoras Full Notes PDF: ${order.noteTitle}`
+                                )}&body=${encodeURIComponent(
+                                  `প্রিয় ${order.customerName},\nআপনার ক্রয়কৃত "${order.noteTitle}" (${order.noteClass}) সম্পূর্ণ PDF নোটস এই ইমেইলের সাথে পাঠানো হলো।`
+                                )}`}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold text-[11px]"
+                                title="গ্রাহকের ইমেইলে পাঠান"
+                              >
+                                <Mail className="w-3 h-3" />
+                                <span>Email</span>
+                              </a>
+                            )}
+                            {order.status !== 'Delivered' && (
+                              <button
+                                onClick={async () => {
+                                  await updateNoteOrderStatus(order.id, 'Delivered');
+                                  showNotification('অর্ডারটি Delivered হিসেবে চিহ্নিত হয়েছে।');
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-bold text-[11px]"
+                              >
+                                ডেলিভারড
+                              </button>
+                            )}
+                            <button
+                              onClick={async () => {
+                                if (confirm('এই অর্ডারটি মুছে ফেলতে চান?')) {
+                                  await deleteNoteOrder(order.id);
+                                  showNotification('অর্ডারটি মুছে ফেলা হয়েছে।');
+                                }
+                              }}
+                              className="p-1 text-red-600 hover:bg-red-50 rounded-lg inline-flex"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Tab: Courses Management */}
@@ -1720,7 +2326,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </td>
                         <td className="px-6 py-4">
                           <div className="font-semibold text-[#2c5f2d]">{b.courseSelected}</div>
-                          <div className="text-xs text-gray-500">{b.shiftPreference} Shift</div>
+                          <div className="text-xs text-gray-600 font-medium mt-0.5">
+                            {b.learningMode === 'Online' ? 'অনলাইন লাইভ ব্যাচ' : 'অফলাইন ক্যাম্পাস'} · {b.shiftPreference} Shift
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
@@ -1858,9 +2466,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           <div className="space-y-4 max-w-3xl">
             {[
               { title: 'হোম পেজ ও স্লাইডার', path: '#/', desc: 'মূল ল্যান্ডিং পেজ ও হিরো স্লাইড প্রদর্শন' },
+              { title: 'অনলাইন লাইভ ব্যাচ পোর্টাল', path: '#/online-batch', desc: 'অনলাইন ভর্তি ও লাইভ ক্লাসরুম পোর্টাল' },
+              { title: 'ফ্রী হুক ও পেইড নোটস লাইব্রেরি', path: '#/notes', desc: 'সকল ক্লাস ও বিষয়ের ফ্রী হুক এবং পেইড নোটস' },
               { title: 'শিক্ষক ও পরিচালক প্রোফাইল', path: '#/faculty', desc: 'প্রতিষ্ঠানের শিক্ষক ও পরিচালকের পরিচিতি' },
               { title: 'অনলাইন ভর্তি ফর্ম', path: '#/admission', desc: 'সরাসরি ভর্তি আবেদন পেজ' },
-              { title: 'স্মার্ট কুইজ পরীক্ষা', path: '#/quiz', desc: 'মেধা যাচাই ও শীর্ষ ৫ লিডারবোর্ড' },
+              { title: 'স্মার্ট কুইজ পরীক্ষা', path: '#/quiz', desc: 'মেধা যাচাই ও শীর্ষ ১০ লিডারবোর্ড' },
               { title: 'কোর্স ক্যাটালগ', path: '#/courses', desc: 'সকল ব্যাচ ও মেন্টর তালিকা' },
             ].map((linkItem) => (
               <div
@@ -2268,6 +2878,321 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           certificate={selectedCertForPreview}
           onClose={() => setSelectedCertForPreview(null)}
         />
+      )}
+
+      {/* Online Batch Edit/Create Modal */}
+      {isBatchModalOpen && editingBatch && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl space-y-5 my-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                <Video className="w-5 h-5 text-[#2c5f2d]" />
+                <span>অনলাইন ব্যাচ তথ্য সম্পাদনা</span>
+              </h3>
+              <button
+                onClick={() => setIsBatchModalOpen(false)}
+                className="p-1 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBatchForm} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">ব্যাচের শিরোনাম *</label>
+                <input
+                  type="text"
+                  required
+                  value={editingBatch.title}
+                  onChange={(e) => setEditingBatch({ ...editingBatch, title: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">শ্রেণী / ক্লাস *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingBatch.classLevel}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, classLevel: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">বিষয়সমূহ *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingBatch.subject}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, subject: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">ক্লাস সময়সূচী *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingBatch.schedule}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, schedule: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">মাসিক ফি *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingBatch.monthlyFee}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, monthlyFee: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">ক্লাস প্ল্যাটফর্ম</label>
+                  <input
+                    type="text"
+                    value={editingBatch.platform}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, platform: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">শিক্ষক</label>
+                  <input
+                    type="text"
+                    value={editingBatch.instructor}
+                    onChange={(e) => setEditingBatch({ ...editingBatch, instructor: e.target.value })}
+                    className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">লাইভ ক্লাস লিংক (Google Meet / Zoom URL)</label>
+                <input
+                  type="url"
+                  value={editingBatch.meetingLink}
+                  onChange={(e) => setEditingBatch({ ...editingBatch, meetingLink: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">পরবর্তী ক্লাসের টপিক (ঐচ্ছিক)</label>
+                <input
+                  type="text"
+                  value={editingBatch.nextTopic || ''}
+                  onChange={(e) => setEditingBatch({ ...editingBatch, nextTopic: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">ব্যাচের সংক্ষিপ্ত বিবরণ</label>
+                <textarea
+                  rows={2}
+                  value={editingBatch.description}
+                  onChange={(e) => setEditingBatch({ ...editingBatch, description: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-xs font-bold text-gray-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editingBatch.active !== false}
+                  onChange={(e) => setEditingBatch({ ...editingBatch, active: e.target.checked })}
+                  className="w-4 h-4 rounded text-[#2c5f2d]"
+                />
+                <span>ব্যাচটি ওয়েবসাইটে সক্রিয় রাখুন</span>
+              </label>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsBatchModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#2c5f2d] text-white text-xs font-bold shadow flex items-center gap-2"
+                >
+                  <Check className="w-4 h-4 text-[#ffd700]" />
+                  <span>ব্যাচ সংরক্ষণ করুন</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Study Note Edit/Create Modal */}
+      {isNoteModalOpen && editingNote && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-5 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h3 className="text-lg font-black text-gray-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-[#2c5f2d]" />
+                <span>ফ্রী হুক ও পেইড নোটস সম্পাদনা</span>
+              </h3>
+              <button
+                onClick={() => setIsNoteModalOpen(false)}
+                className="p-1 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveNoteForm} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">নোটসের শিরোনাম *</label>
+                <input
+                  type="text"
+                  required
+                  value={editingNote.title}
+                  onChange={(e) => setEditingNote({ ...editingNote, title: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">শ্রেণী / ক্লাস *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingNote.classLevel}
+                    onChange={(e) => setEditingNote({ ...editingNote, classLevel: e.target.value })}
+                    placeholder="৯ম - ১০ম শ্রেণী (SSC)"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">বিষয় *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingNote.subject}
+                    onChange={(e) => setEditingNote({ ...editingNote, subject: e.target.value })}
+                    placeholder="উচ্চতর গণিত"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">অধ্যায়</label>
+                  <input
+                    type="text"
+                    value={editingNote.chapter}
+                    onChange={(e) => setEditingNote({ ...editingNote, chapter: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">পেইড মূল্য *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editingNote.price}
+                    onChange={(e) => setEditingNote({ ...editingNote, price: e.target.value })}
+                    placeholder="৳ ১৫০"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">মোট পৃষ্ঠা</label>
+                  <input
+                    type="text"
+                    value={editingNote.totalPages}
+                    onChange={(e) => setEditingNote({ ...editingNote, totalPages: e.target.value })}
+                    placeholder="৪৮ পৃষ্ঠা PDF"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">প্রণয়নকারী</label>
+                  <input
+                    type="text"
+                    value={editingNote.authorTeacher}
+                    onChange={(e) => setEditingNote({ ...editingNote, authorTeacher: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">ফ্রী হুক নোট শিরোনাম</label>
+                <input
+                  type="text"
+                  value={editingNote.freeHookTitle}
+                  onChange={(e) => setEditingNote({ ...editingNote, freeHookTitle: e.target.value })}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">ফ্রী হুক নোটস কন্টেন্ট (সবাই ফ্রিতে পড়বে) *</label>
+                <textarea
+                  rows={5}
+                  required
+                  value={editingNote.freeHookContent}
+                  onChange={(e) => setEditingNote({ ...editingNote, freeHookContent: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">পেইড ভার্সনে যা থাকছে (প্রতিটি পয়েন্ট নতুন লাইনে লিখুন)</label>
+                <textarea
+                  rows={3}
+                  value={notePaidHighlightsText}
+                  onChange={(e) => setNotePaidHighlightsText(e.target.value)}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-300 text-sm"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-xs font-bold text-gray-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={editingNote.active !== false}
+                  onChange={(e) => setEditingNote({ ...editingNote, active: e.target.checked })}
+                  className="w-4 h-4 rounded text-[#2c5f2d]"
+                />
+                <span>নোটসটি ওয়েবসাইটে প্রকাশ করুন</span>
+              </label>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsNoteModalOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-xs font-bold"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-[#2c5f2d] text-white text-xs font-bold shadow flex items-center gap-2"
+                >
+                  <Check className="w-4 h-4 text-[#ffd700]" />
+                  <span>নোটস সংরক্ষণ করুন</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

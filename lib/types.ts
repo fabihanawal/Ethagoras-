@@ -125,6 +125,7 @@ export interface LeaderboardEntry {
 
 export interface BookingSubmission {
   id: string;
+  userId?: string;
   studentName: string;
   guardianName: string;
   phone: string;
@@ -132,9 +133,74 @@ export interface BookingSubmission {
   schoolName: string;
   grade: string;
   courseSelected: string;
+  learningMode?: 'Online' | 'Offline';
   shiftPreference: 'Morning' | 'Day' | 'Evening';
   address: string;
   notes?: string;
   submittedAt: string;
   status: 'Pending' | 'Approved' | 'Contacted';
+}
+
+export interface PaymentSettings {
+  bkashNumber: string;
+  bkashAccountType: string;
+  nagadNumber: string;
+  nagadAccountType: string;
+  bankName: string;
+  bankBranch: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankRoutingNumber?: string;
+  paymentInstructions?: string;
+  updatedAt?: string;
+}
+
+export interface OnlineBatch {
+  id: string;
+  title: string;
+  classLevel: string;
+  subject: string;
+  schedule: string;
+  platform: string;
+  meetingLink: string;
+  instructor: string;
+  monthlyFee: string;
+  description: string;
+  nextTopic?: string;
+  active: boolean;
+  displayOrder?: number;
+}
+
+export interface StudyNote {
+  id: string;
+  title: string;
+  classLevel: string;
+  subject: string;
+  chapter: string;
+  freeHookTitle: string;
+  freeHookContent: string;
+  paidHighlights: string[];
+  totalPages: string;
+  price: string;
+  authorTeacher: string;
+  active: boolean;
+  displayOrder?: number;
+}
+
+export interface NoteOrder {
+  id: string;
+  noteId: string;
+  noteTitle: string;
+  noteClass: string;
+  noteSubject: string;
+  price: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  deliveryPreference: 'WhatsApp' | 'Email' | 'Both';
+  paymentMethod: 'bKash' | 'Nagad' | 'Bank';
+  transactionId: string;
+  senderNumber?: string;
+  submittedAt: string;
+  status: 'Pending' | 'Delivered';
 }

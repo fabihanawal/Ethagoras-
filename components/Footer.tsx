@@ -121,6 +121,16 @@ export const Footer: React.FC<FooterProps> = ({
                 </button>
               </li>
               <li>
+                <button onClick={() => navigate('#/online-batch')} className="hover:text-[#ffd700] transition-colors">
+                  অনলাইন লাইভ ব্যাচ (Online Batch)
+                </button>
+              </li>
+              <li>
+                <button onClick={() => navigate('#/notes')} className="hover:text-[#ffd700] transition-colors">
+                  ফ্রী ও পেইড নোটস লাইব্রেরি (Notes)
+                </button>
+              </li>
+              <li>
                 <button onClick={() => navigate('#/courses')} className="hover:text-[#ffd700] transition-colors">
                   কোর্স কারিকুলাম (Courses)
                 </button>

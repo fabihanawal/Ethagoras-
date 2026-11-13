@@ -8,6 +8,8 @@ import { AdminDashboard } from '../components/AdminDashboard';
 import { CoursesSection } from '../components/CoursesSection';
 import { FacultySection } from '../components/FacultySection';
 import { UserProfileView } from '../components/UserProfileView';
+import { OnlineBatchPortal } from '../components/OnlineBatchPortal';
+import { NotesLibrarySection } from '../components/NotesLibrarySection';
 import { Footer } from '../components/Footer';
 import { useAuth } from '../lib/AuthContext';
 import {
@@ -18,6 +20,10 @@ import {
   subscribeSlides,
   subscribeBookings,
   subscribeCourses,
+  subscribePaymentSettings,
+  subscribeOnlineBatches,
+  subscribeNotes,
+  subscribeNoteOrders,
 } from '../lib/firestoreService';
 import {
   INITIAL_CONTACT_SETTINGS,
@@ -27,6 +33,10 @@ import {
   INITIAL_SLIDES,
   INITIAL_BOOKINGS,
   INITIAL_COURSES,
+  INITIAL_PAYMENT_SETTINGS,
+  INITIAL_ONLINE_BATCHES,
+  INITIAL_STUDY_NOTES,
+  INITIAL_NOTE_ORDERS,
 } from '../lib/dataStore';
 import {
   Slide,
@@ -36,6 +46,10 @@ import {
   DirectorProfile,
   TeacherProfile,
   Course,
+  PaymentSettings,
+  OnlineBatch,
+  StudyNote,
+  NoteOrder,
 } from '../lib/types';
 import {
   Sparkles,
@@ -48,19 +62,28 @@ import {
   Star,
   Users,
   Quote,
+  Video,
 } from 'lucide-react';
 
 export default function Home() {
   const { isAdmin } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<string>('#/');
+  const [admissionPreset, setAdmissionPreset] = useState<{ mode: 'Online' | 'Offline'; course: string }>({
+    mode: 'Online',
+    course: '',
+  });
 
   // Real-time Firestore States with fallback initial data
   const [contactSettings, setContactSettings] = useState<ContactSettings>(INITIAL_CONTACT_SETTINGS);
   const [socialSettings, setSocialSettings] = useState<SocialSettings>(INITIAL_SOCIAL_SETTINGS);
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>(INITIAL_PAYMENT_SETTINGS);
   const [director, setDirector] = useState<DirectorProfile>(INITIAL_DIRECTOR_PROFILE);
   const [teachers, setTeachers] = useState<TeacherProfile[]>(INITIAL_TEACHERS);
   const [slides, setSlides] = useState<Slide[]>(INITIAL_SLIDES);
   const [courses, setCourses] = useState<Course[]>(INITIAL_COURSES);
+  const [onlineBatches, setOnlineBatches] = useState<OnlineBatch[]>(INITIAL_ONLINE_BATCHES);
+  const [notes, setNotes] = useState<StudyNote[]>(INITIAL_STUDY_NOTES);
+  const [noteOrders, setNoteOrders] = useState<NoteOrder[]>(INITIAL_NOTE_ORDERS);
   const [bookings, setBookings] = useState<BookingSubmission[]>(INITIAL_BOOKINGS);
 
   // Synchronize hash routing
@@ -80,31 +103,45 @@ export default function Home() {
   useEffect(() => {
     const unsubContact = subscribeContactSettings(setContactSettings);
     const unsubSocial = subscribeSocialSettings(setSocialSettings);
+    const unsubPayment = subscribePaymentSettings(setPaymentSettings);
     const unsubDirector = subscribeDirector(setDirector);
     const unsubTeachers = subscribeTeachers(setTeachers);
     const unsubSlides = subscribeSlides(setSlides);
     const unsubCourses = subscribeCourses(setCourses);
+    const unsubOnlineBatches = subscribeOnlineBatches(setOnlineBatches);
+    const unsubNotes = subscribeNotes(setNotes);
 
-    // Bookings are confidential and only accessible by verified admins
+    // Bookings and Note Orders are confidential and only accessible by verified admins
     let unsubBookings = () => {};
+    let unsubNoteOrders = () => {};
     if (isAdmin) {
       unsubBookings = subscribeBookings(setBookings);
+      unsubNoteOrders = subscribeNoteOrders(setNoteOrders);
     }
 
     return () => {
       unsubContact();
       unsubSocial();
+      unsubPayment();
       unsubDirector();
       unsubTeachers();
       unsubSlides();
       unsubCourses();
+      unsubOnlineBatches();
+      unsubNotes();
       unsubBookings();
+      unsubNoteOrders();
     };
   }, [isAdmin]);
 
   const navigate = (route: string) => {
     window.location.hash = route;
     setCurrentRoute(route);
+  };
+
+  const handleSelectOnlineBatchForAdmission = (batchTitle: string) => {
+    setAdmissionPreset({ mode: 'Online', course: batchTitle });
+    navigate('#/admission');
   };
 
   const handleNewBooking = (booking: BookingSubmission) => {
@@ -117,7 +154,7 @@ export default function Home() {
         <title>ইথাগোরাস প্রাইভেট | Ether Education Platform — নওগাঁ</title>
         <meta
           name="description"
-          content="ইথাগোরাস প্রাইভেট (Ether Education Platform) - নওগাঁর শীর্ষস্থানীয় ডিজিটাল কোচিং সেন্টার। আধুনিক স্মার্ট ক্লাসরুম, কুইজ ইঞ্জিন ও অভিজ্ঞ শিক্ষকমণ্ডলী।"
+          content="ইথাগোরাস প্রাইভেট (Ether Education Platform) - নওগাঁর শীর্ষস্থানীয় ডিজিটাল কোচিং সেন্টার। আধুনিক স্মার্ট ক্লাসরুম, অনলাইন ব্যাচ, ফ্রী ও পেইড নোটস লাইব্রেরি, কুইজ ইঞ্জিন ও অভিজ্ঞ শিক্ষকমণ্ডলী।"
         />
       </Head>
 
@@ -129,7 +166,28 @@ export default function Home() {
         {currentRoute === '#/quiz' ? (
           <QuizEngine navigate={navigate} />
         ) : currentRoute === '#/admission' ? (
-          <AdmissionForm onSuccessBooking={handleNewBooking} navigate={navigate} />
+          <AdmissionForm
+            onSuccessBooking={handleNewBooking}
+            navigate={navigate}
+            defaultLearningMode={admissionPreset.mode}
+            defaultCourse={admissionPreset.course}
+            onlineBatches={onlineBatches}
+            courses={courses}
+          />
+        ) : currentRoute === '#/online-batch' ? (
+          <OnlineBatchPortal
+            batches={onlineBatches}
+            contactSettings={contactSettings}
+            navigate={navigate}
+            onSelectOnlineBatchForAdmission={handleSelectOnlineBatchForAdmission}
+          />
+        ) : currentRoute === '#/notes' ? (
+          <NotesLibrarySection
+            notes={notes}
+            paymentSettings={paymentSettings}
+            contactSettings={contactSettings}
+            navigate={navigate}
+          />
         ) : currentRoute === '#/faculty' ? (
           <FacultySection director={director} teachers={teachers} navigate={navigate} />
         ) : currentRoute === '#/profile' ? (
@@ -140,9 +198,13 @@ export default function Home() {
             bookings={bookings}
             contactSettings={contactSettings}
             socialSettings={socialSettings}
+            paymentSettings={paymentSettings}
             director={director}
             teachers={teachers}
             courses={courses}
+            onlineBatches={onlineBatches}
+            notes={notes}
+            noteOrders={noteOrders}
             navigate={navigate}
           />
         ) : currentRoute === '#/courses' ? (
@@ -259,8 +321,52 @@ export default function Home() {
               </div>
             </section>
 
+            {/* Online Live Batch Banner on Homepage */}
+            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="bg-white rounded-3xl p-8 sm:p-10 border border-gray-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                <div className="max-w-2xl space-y-3">
+                  <p className="text-xs font-bold text-[#2c5f2d] flex items-center gap-1.5">
+                    <Video className="w-4 h-4" />
+                    <span>অনলাইন লাইভ ব্যাচ কার্যক্রম · ঘরে বসেই ক্লাস</span>
+                  </p>
+                  <h2 className="text-2xl sm:text-3xl font-black text-gray-900">
+                    অনলাইন ভর্তি আবেদনকারীদের জন্য লাইভ ব্যাচে পাঠদান
+                  </h2>
+                  <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
+                    দূরবর্তী কিংবা অনলাইন আগ্রহী শিক্ষার্থীরা অনলাইন ভর্তি আবেদন করলে সরাসরি Google Meet / Zoom-এ আমাদের অভিজ্ঞ শিক্ষকদের লাইভ ব্যাচে যুক্ত হয়ে নিয়মিত ক্লাস ও পরীক্ষা দিতে পারবে।
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 shrink-0">
+                  <button
+                    onClick={() => navigate('#/online-batch')}
+                    className="px-6 py-3 rounded-2xl bg-[#2c5f2d] hover:bg-[#234b24] text-white font-bold text-sm shadow-sm flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <Video className="w-4 h-4 text-[#ffd700]" />
+                    <span>অনলাইন ব্যাচ পোর্টাল দেখুন</span>
+                  </button>
+                  <button
+                    onClick={() => handleSelectOnlineBatchForAdmission(onlineBatches[0]?.title || '')}
+                    className="px-6 py-3 rounded-2xl bg-[#ffd700] hover:bg-[#e6c200] text-gray-950 font-black text-sm shadow-sm flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <span>অনলাইনে ভর্তি আবেদন</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            {/* Free Hook Notes & Paid Full Notes Preview Section */}
+            <NotesLibrarySection
+              notes={notes}
+              paymentSettings={paymentSettings}
+              contactSettings={contactSettings}
+              compactHomePreview={true}
+              navigate={navigate}
+            />
+
             {/* Courses Overview Section */}
-            <CoursesSection navigate={navigate} />
+            <CoursesSection courses={courses} navigate={navigate} />
 
             {/* Teachers Preview Section */}
             <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

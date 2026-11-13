@@ -168,6 +168,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string", "maxLength": 100 },
+        "userId": { "type": "string", "maxLength": 128 },
         "studentName": { "type": "string", "maxLength": 100 },
         "guardianName": { "type": "string", "maxLength": 100 },
         "phone": { "type": "string", "maxLength": 30 },
@@ -175,6 +176,7 @@
         "schoolName": { "type": "string", "maxLength": 150 },
         "grade": { "type": "string", "maxLength": 100 },
         "courseSelected": { "type": "string", "maxLength": 150 },
+        "learningMode": { "type": "string", "enum": ["Online", "Offline"] },
         "shiftPreference": { "type": "string", "maxLength": 50 },
         "address": { "type": "string", "maxLength": 300 },
         "notes": { "type": "string", "maxLength": 1000 },
@@ -182,6 +184,90 @@
         "status": { "type": "string", "enum": ["Pending", "Approved", "Contacted"] }
       },
       "required": ["studentName", "guardianName", "phone", "courseSelected"]
+    },
+    "PaymentSettings": {
+      "title": "PaymentSettings",
+      "description": "bKash, Nagad, and Bank account details for paid notes and batch fees",
+      "type": "object",
+      "properties": {
+        "bkashNumber": { "type": "string", "maxLength": 40 },
+        "bkashAccountType": { "type": "string", "maxLength": 60 },
+        "nagadNumber": { "type": "string", "maxLength": 40 },
+        "nagadAccountType": { "type": "string", "maxLength": 60 },
+        "bankName": { "type": "string", "maxLength": 120 },
+        "bankBranch": { "type": "string", "maxLength": 120 },
+        "bankAccountName": { "type": "string", "maxLength": 120 },
+        "bankAccountNumber": { "type": "string", "maxLength": 80 },
+        "bankRoutingNumber": { "type": "string", "maxLength": 40 },
+        "paymentInstructions": { "type": "string", "maxLength": 1000 },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["bkashNumber", "nagadNumber", "bankAccountNumber"]
+    },
+    "OnlineBatch": {
+      "title": "OnlineBatch",
+      "description": "Live online batch schedule and classroom info for online applicants",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 200 },
+        "classLevel": { "type": "string", "maxLength": 100 },
+        "subject": { "type": "string", "maxLength": 150 },
+        "schedule": { "type": "string", "maxLength": 200 },
+        "platform": { "type": "string", "maxLength": 100 },
+        "meetingLink": { "type": "string", "maxLength": 500 },
+        "instructor": { "type": "string", "maxLength": 120 },
+        "monthlyFee": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "nextTopic": { "type": "string", "maxLength": 300 },
+        "active": { "type": "boolean" },
+        "displayOrder": { "type": "number" }
+      },
+      "required": ["title", "classLevel", "subject", "schedule"]
+    },
+    "StudyNote": {
+      "title": "StudyNote",
+      "description": "Free hook notes and paid full note details organized by class and subject",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 200 },
+        "classLevel": { "type": "string", "maxLength": 100 },
+        "subject": { "type": "string", "maxLength": 100 },
+        "chapter": { "type": "string", "maxLength": 200 },
+        "freeHookTitle": { "type": "string", "maxLength": 200 },
+        "freeHookContent": { "type": "string", "maxLength": 8000 },
+        "paidHighlights": { "type": "array" },
+        "totalPages": { "type": "string", "maxLength": 80 },
+        "price": { "type": "string", "maxLength": 60 },
+        "authorTeacher": { "type": "string", "maxLength": 120 },
+        "active": { "type": "boolean" },
+        "displayOrder": { "type": "number" }
+      },
+      "required": ["title", "classLevel", "subject", "freeHookContent", "price"]
+    },
+    "NoteOrder": {
+      "title": "NoteOrder",
+      "description": "Paid full notes purchase and delivery request via WhatsApp or Email",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "noteId": { "type": "string", "maxLength": 100 },
+        "noteTitle": { "type": "string", "maxLength": 200 },
+        "noteClass": { "type": "string", "maxLength": 100 },
+        "noteSubject": { "type": "string", "maxLength": 100 },
+        "price": { "type": "string", "maxLength": 60 },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "customerPhone": { "type": "string", "maxLength": 40 },
+        "customerEmail": { "type": "string", "maxLength": 120 },
+        "deliveryPreference": { "type": "string", "enum": ["WhatsApp", "Email", "Both"] },
+        "paymentMethod": { "type": "string", "enum": ["bKash", "Nagad", "Bank"] },
+        "transactionId": { "type": "string", "maxLength": 100 },
+        "senderNumber": { "type": "string", "maxLength": 40 },
+        "submittedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Delivered"] }
+      },
+      "required": ["noteId", "noteTitle", "customerName", "customerPhone", "paymentMethod", "transactionId"]
     },
     "Leaderboard": {
       "title": "Leaderboard",
@@ -209,6 +295,10 @@
       "schema": "SocialSettings",
       "description": "Social links for Facebook, Instagram, YouTube"
     },
+    "/settings/payment": {
+      "schema": "PaymentSettings",
+      "description": "bKash, Nagad, and Bank account numbers for note purchases and fees"
+    },
     "/settings/admins": {
       "schema": "AdminSettings",
       "description": "List of authorized administrator emails"
@@ -224,6 +314,18 @@
     "/courses/{courseId}": {
       "schema": "Course",
       "description": "Offered courses managed by Admin"
+    },
+    "/onlineBatches/{batchId}": {
+      "schema": "OnlineBatch",
+      "description": "Online batch classes, schedules and live meeting links"
+    },
+    "/notes/{noteId}": {
+      "schema": "StudyNote",
+      "description": "Free hook notes and full paid note offerings"
+    },
+    "/noteOrders/{orderId}": {
+      "schema": "NoteOrder",
+      "description": "Student purchase requests for paid full notes"
     },
     "/questions/{questionId}": {
       "schema": "QuizQuestion",

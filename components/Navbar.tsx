@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BookOpen, Award, UserCheck, ShieldCheck, Menu, X, PhoneCall, Sparkles, LogIn, LogOut, Users, User } from 'lucide-react';
+import { BookOpen, Award, Video, ShieldCheck, Menu, X, PhoneCall, Sparkles, LogIn, LogOut, Users, User } from 'lucide-react';
 import { useAuth } from '../lib/AuthContext';
 import { ContactSettings } from '../lib/types';
 
@@ -14,12 +14,13 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, navigate, contactS
   const { user, isAdmin, signInWithGoogle, signOut } = useAuth();
 
   const navItems = [
-    { label: 'হোম (Home)', route: '#/' },
-    { label: 'কোর্সসমূহ (Courses)', route: '#/courses' },
-    { label: 'শিক্ষক ও পরিচালক', route: '#/faculty', icon: Users },
-    { label: 'কুইজ ও লিডারবোর্ড', route: '#/quiz' },
-    { label: 'অনলাইন ভর্তি', route: '#/admission' },
-    ...(user ? [{ label: 'আমার প্রোফাইল ও সনদ', route: '#/profile', icon: Award }] : []),
+    { label: 'হোম', route: '#/' },
+    { label: 'অনলাইন ব্যাচ', route: '#/online-batch', icon: Video },
+    { label: 'ফ্রী ও পেইড নোটস', route: '#/notes', icon: BookOpen },
+    { label: 'কোর্সসমূহ', route: '#/courses' },
+    { label: 'শিক্ষকবৃন্দ', route: '#/faculty', icon: Users },
+    { label: 'কুইজ', route: '#/quiz' },
+    ...(user ? [{ label: 'প্রোফাইল ও সনদ', route: '#/profile', icon: Award }] : []),
     { label: 'অ্যাডমিন', route: '#/admin', icon: ShieldCheck, adminOnly: true },
   ];
 
@@ -59,7 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, navigate, contactS
                 <button
                   key={item.route}
                   onClick={() => navigate(item.route)}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 ${
+                  className={`px-2.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                     isActive
                       ? 'bg-[#2c5f2d] text-white shadow-md shadow-[#2c5f2d]/20'
                       : 'text-gray-700 hover:text-[#2c5f2d] hover:bg-gray-100/70'

@@ -86,6 +86,43 @@ service cloud.firestore {
     // Bookings (Admissions)
     match /bookings/{bookingId} {
       allow create: if true;
+      allow read: if isAdmin() || (
+        isSignedIn() && (
+          resource.data.userId == request.auth.uid ||
+          (request.auth.token.email_verified == true && resource.data.email == request.auth.token.email)
+        )
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // Online Batches (Live classes for online applicants)
+    match /onlineBatches/{batchId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Study Notes (Free Hook Notes + Paid Full Notes Info)
+    match /notes/{noteId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Paid Note Purchase Orders (Customer creates order, Admin manages delivery)
+    match /noteOrders/{orderId} {
+      allow create: if request.resource.data.keys().hasAll([
+        'id', 'noteId', 'noteTitle', 'customerName', 'customerPhone', 'paymentMethod', 'transactionId', 'status'
+      ])
+      && request.resource.data.customerName is string
+      && request.resource.data.customerName.size() > 0
+      && request.resource.data.customerName.size() <= 120
+      && request.resource.data.customerPhone is string
+      && request.resource.data.customerPhone.size() > 0
+      && request.resource.data.customerPhone.size() <= 40
+      && request.resource.data.transactionId is string
+      && request.resource.data.transactionId.size() > 0
+      && request.resource.data.transactionId.size() <= 100
+      && request.resource.data.paymentMethod in ['bKash', 'Nagad', 'Bank']
+      && request.resource.data.status == 'Pending';
       allow read, update, delete: if isAdmin();
     }
 
